@@ -220,3 +220,19 @@ test("a backup can be read back from the copied text, and junk is rejected", () 
   assert.throws(() => SRS.parseBackup("hello"));
   assert.throws(() => SRS.parseBackup('{"not":"ours"}'));
 });
+
+test("an ear round spreads its questions evenly across the timbres", () => {
+  const t = SRS.planTimbres(15, ["piano", "harmonium", "pluck"], Math.random);
+  assert.equal(t.length, 15);
+  const counts = {};
+  t.forEach((x) => (counts[x] = (counts[x] || 0) + 1));
+  assert.deepEqual(Object.keys(counts).sort(), ["harmonium", "piano", "pluck"]);
+  assert.ok(Math.max(...Object.values(counts)) - Math.min(...Object.values(counts)) <= 1);
+});
+
+test("timbre order changes from round to round", () => {
+  const a = SRS.planTimbres(12, ["piano", "harmonium", "pluck"], Math.random).join();
+  let changed = false;
+  for (let i = 0; i < 20 && !changed; i++) changed = SRS.planTimbres(12, ["piano", "harmonium", "pluck"], Math.random).join() !== a;
+  assert.ok(changed);
+});

@@ -4,7 +4,7 @@ Date: 17 October 2026. Scope: the curriculum, the app's design, and the code.
 
 ## Verdict
 
-The foundations are right: relative pitch first (which is how Indian music already works, with a movable Sa), real-time visual pitch feedback (the one feedback type that showed a significant training effect in Berglin et al. 2022), honest framing of absolute pitch as a side quest, and spaced repetition with measurable gates. The process was not: the app was built before the platform limits were checked, and tests came after the code. Retro-fitting tests found five real defects in the most important part, the repetition and progress logic.
+The foundations are right: relative pitch first (which is how Indian music already works, with a movable Sa), real-time visual pitch feedback (the one feedback type that showed a significant training effect in Berglin et al. 2022), honest framing of absolute pitch as a side quest, and spaced repetition with measurable gates. The first build process was not: the app was built before the platform limits were checked, and tests came after the code. Retro-fitting tests found five real defects in the most important part, the repetition and progress logic.
 
 ## Process mistakes
 
@@ -27,7 +27,8 @@ The foundations are right: relative pitch first (which is how Indian music alrea
 ## Open gaps, ranked
 
 1. **Drone bleed can fake progress (high).** Without earphones, the microphone can hear the drone's Sa and score "Hold Sa" as a hit. Next fix: a "No earphones" mode that plays the reference, then stops the drone while you sing; and a test with drone audio fed into the mic.
-2. **One synthetic timbre (high).** Every ear question uses the same harmonium-like tone. Recognition may not transfer to real voices and instruments; the 2019 absolute-pitch study trained across multiple timbres. Add three or four timbres and a test that questions vary.
+2. **Fixed: one synthetic timbre.** Ear rounds now rotate piano, harmonium and plucked string, evenly and in a fresh order each round (tests: `planTimbres`, plucked-string tuning, piano partials, and an end-to-end check that a round uses three sounds). Piano leads because note naming is most accurate with piano and worst with pure tones (Miyazaki 1989).
+2a. **Singing reference should be your own voice (high, next).** For pitch matching, people sing closer to a human voice than to piano (Nichols 2020: about 53 vs 80 cents off on single pitches), poor singers do significantly better with a human model than a synthetic one (Journal of Voice 2012), and matching one's own recorded voice beats a synthesized voice (Hutchins & Peretz). A fake synthesized voice would be worse, so the plan is: record your Sa once, then use it, pitch-shifted, as the reference for Hold Sa and sing reviews. Harmonium stays as the fallback.
 3. **Ear questions always rise from Sa within one octave (medium).** A learner can answer by "how far up" rather than by the swara's character. Add low and high octave placements, and drone-context questions instead of Sa-then-note.
 4. **Single-note singing only (medium).** The visual-feedback study found the biggest gains on four-note melodies. Add short phrase reviews (Sa Re Ga Re Sa) scored note by note.
 5. **Reading deck missing (medium).** Stage 4 promises an automatic reading gate; nothing exists yet. Build it test-first when you reach Stage 3.
@@ -36,8 +37,9 @@ The foundations are right: relative pitch first (which is how Indian music alrea
 8. **Untested on real voices.** All pitch tests use synthetic tones. Record five short clips of yourself (Sa, Pa, a slide, breathy "aa", a wobbly note) and add them as test fixtures: the most valuable next test you can write.
 9. **Two homes for progress.** The phone app is the daily driver; the Claude copy is where I can read progress directly. Today that bridge is copy and paste (Progress → Backup). Acceptable for monthly check-ins.
 
-## Suggested next three TDD iterations
+## Suggested next TDD iterations
 
-1. "No earphones" mode: failing e2e test where the mic hears only the drone and Hold Sa must not score.
-2. Timbre and octave variety in ear questions: failing unit test that a 15-question round uses at least three timbres and two octaves.
-3. Real-voice fixtures: your five recordings, each with an expected swara track.
+1. Your own voice as the singing reference: record Sa once, then shift it to each target (tests: shift ratio per swara, stored clip survives reload, sing reviews play it).
+2. "No earphones" mode: failing e2e test where the mic hears only the drone and Hold Sa must not score.
+3. Octave variety in ear questions (low and high placements).
+4. Real-voice fixtures: your five recordings, each with an expected swara track.

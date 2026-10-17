@@ -98,3 +98,32 @@ test("analyseBuffer turns a recording into a pitch track", () => {
   assert.ok(voiced.length / track.length > 0.95);
   assert.ok(voiced.every((x) => Math.abs(centsOff(x.freq, 196)) < 5));
 });
+
+test("scale() lists your Sa-to-taar-Sa scale with Western letters", () => {
+  const s = S.scale(48);
+  assert.deepEqual(s.map((x) => x.name), ["Sa", "Re", "Ga", "Ma", "Pa", "Dha", "Ni", "Sa"]);
+  assert.deepEqual(s.map((x) => x.letter), ["C3", "D3", "E3", "F3", "G3", "A3", "B3", "C4"]);
+  assert.equal(s[1].sol, "re");
+  assert.equal(S.scale(50)[2].letter, "F♯3", "with Sa on D3, Ga is F-sharp");
+});
+
+test("there are at least three timbres for ear questions, piano first", () => {
+  assert.ok(S.TIMBRES.length >= 3);
+  assert.equal(S.TIMBRES[0], "piano");
+});
+
+test("the plucked-string timbre is in tune", () => {
+  for (const f of [130.81, 196, 293.66]) {
+    const buf = S.pluckSamples(f, SR, 0.5);
+    const r = S.detect(buf.subarray(4800, 4800 + N), SR);
+    assert.ok(r && Math.abs(centsOff(r.freq, f)) < 10, "at " + f + " got " + (r && r.freq.toFixed(2)));
+  }
+});
+
+test("the piano timbre's partials sit just above whole multiples, like real strings", () => {
+  const p = S.pianoPartials(220);
+  assert.ok(p.length >= 6);
+  assert.ok(Math.abs(p[0].freq - 220) < 0.1);
+  for (let n = 2; n <= p.length; n++) assert.ok(p[n - 1].freq > 220 * n && p[n - 1].freq < 220 * n * 1.02);
+  for (let n = 1; n < p.length; n++) assert.ok(p[n].amp < p[n - 1].amp && p[n].decay < p[n - 1].decay);
+});

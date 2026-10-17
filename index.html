@@ -85,6 +85,12 @@
   .linklist { display: grid; gap: 8px; }
   .linklist a { display: flex; justify-content: space-between; gap: 10px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; text-decoration: none; color: var(--ink); }
   .linklist a span:last-child { color: var(--muted); font-size: 0.9rem; }
+  .scale-strip { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }
+  .scale-strip .note { flex-direction: column; gap: 0; border-radius: 10px; padding: 6px 2px; min-height: 64px; font-weight: 500; }
+  .scale-strip .sn { font-family: var(--display); font-size: 1.15rem; line-height: 1.1; }
+  .scale-strip .sl { font-family: var(--mono); font-size: 0.72rem; color: var(--ink); }
+  .scale-strip .ss { font-size: 0.7rem; color: var(--muted); }
+  .scale-strip .fixed-note { background: var(--brass-soft); border-color: var(--brass); }
   .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 12px; z-index: 20; font-weight: 600; max-width: calc(100% - 32px); }
 </style>
 
@@ -103,6 +109,7 @@
       <button type="button" id="saPlay" class="brass">Play Sa</button>
       <button type="button" id="saFind">Find from my voice</button>
     </div>
+    <div class="scale-strip" id="saScale" aria-label="Your scale"></div>
     <p class="msg" id="saMsg"></p>
   </section>
 
@@ -117,6 +124,7 @@
       <div class="stat"><span class="v" id="stDue">0</span><span class="l">cards due now</span></div>
       <div class="stat"><span class="v" id="stMastered">0</span><span class="l">cards mastered</span></div>
     </div>
+    <div class="card" style="gap:8px"><span class="eyebrow">Your scale · tap to hear</span><div class="scale-strip" id="todayScale"></div></div>
     <ol class="steps" id="steps">
       <li id="stepTune"><div><span class="t">Tune in · 2 min</span><span class="d">Drone on. Sing "aa" on Sa and hold it in the green.</span></div><button type="button" data-go="tune">Start</button></li>
       <li id="stepEar"><div><span class="t">Ear reviews · 5 min</span><span class="d" id="stepEarD">Name the notes that are due.</span></div><button type="button" class="primary" data-go="ear">Start</button></li>
@@ -351,14 +359,23 @@
   /* ---------- Sa panel ---------- */
   (function () {
     var sel = $("saSelect");
-    for (var m = 40; m <= 67; m++) { var o = document.createElement("option"); o.value = m; o.textContent = S.letter(m) + " · " + S.mtof(m).toFixed(0) + " Hz"; sel.appendChild(o); }
+    for (var m = 40; m <= 67; m++) { var o = document.createElement("option"); o.value = m; o.textContent = "Sa = " + S.letter(m) + " · " + S.mtof(m).toFixed(0) + " Hz"; sel.appendChild(o); }
     sel.addEventListener("change", function () { setSa(+sel.value); });
     $("saChip").addEventListener("click", function () { var p = $("saPanel"); p.hidden = !p.hidden; $("saChip").setAttribute("aria-expanded", String(!p.hidden)); });
     $("saPlay").addEventListener("click", function () { S.seq([st.saMidi], 1.4); });
     $("saFind").addEventListener("click", findSa);
   })();
   function setSa(m) { st.saMidi = m; st.saSet = true; S.droneSetSa(m); persist(); renderSa(); drawLane(); }
-  function renderSa() { $("saChip").textContent = "Sa = " + S.letter(st.saMidi); $("saSelect").value = String(st.saMidi); }
+  function renderSa() {
+    $("saChip").textContent = "Sa = " + S.letter(st.saMidi); $("saSelect").value = String(st.saMidi);
+    var html = S.scale(st.saMidi).map(function (n) {
+      return '<button type="button" class="note' + (n.deg % 12 === 0 || n.deg === 7 ? " fixed-note" : "") + '" data-midi="' + n.midi + '"><span class="sn">' + S.swaraHTML(n.deg % 12, { oct: n.deg >= 12 ? 1 : 0 }) + '</span><span class="sl">' + n.letter + '</span><span class="ss">' + n.sol + "</span></button>";
+    }).join("");
+    ["saScale", "todayScale"].forEach(function (id) {
+      var el = $(id); el.innerHTML = html;
+      el.querySelectorAll("[data-midi]").forEach(function (b) { b.addEventListener("click", function () { S.seq([+b.dataset.midi], 0.9); }); });
+    });
+  }
 
   /* ---------- Microphone and the live loop ---------- */
   var mic = { on: false, analyser: null, stream: null, buf: null, blocked: false }, trail = [], smooth = [];
@@ -571,8 +588,8 @@
   }
   function playQuestion() {
     if (ear.cur == null) return;
-    if (ear.mode === "rel") { var end = S.seq([st.saMidi, st.saMidi + ear.cur], 0.8, 0.25); ear.t0 = performance.now() + 2000; }
-    else { ear.oct = ear.oct || (Math.random() < 0.5 ? 48 : 60); S.seq([ear.oct + ear.cur], 1.0); ear.t0 = performance.now() + 300; }
+    if (ear.mode === "rel") { S.seq([st.saMidi, st.saMidi + ear.cur], 0.8, 0.25, ear.timbre); ear.t0 = performance.now() + 2000; }
+    else { ear.oct = ear.oct || (Math.random() < 0.5 ? 48 : 60); S.seq([ear.oct + ear.cur], 1.0, 0.08, ear.timbre); ear.t0 = performance.now() + 300; }
   }
   function nextQuestion() {
     if (ear.i >= ear.q.length) {
@@ -580,8 +597,8 @@
       $("earFb").textContent = ear.right + " of " + ear.q.length + " right. Your cards are rescheduled.";
       $("earStart").hidden = false; $("earStart").textContent = "Another round"; $("earNext").hidden = true; ear.cur = null; renderAnswers(); renderToday(); return;
     }
-    ear.cur = ear.q[ear.i].d; ear.retry = ear.q[ear.i].retry; ear.oct = null; ear.answered = false;
-    $("earCount").textContent = "Question " + (ear.i + 1) + " of " + ear.q.length;
+    ear.cur = ear.q[ear.i].d; ear.retry = ear.q[ear.i].retry; ear.timbre = ear.q[ear.i].timbre; ear.oct = null; ear.answered = false;
+    $("earCount").textContent = "Question " + (ear.i + 1) + " of " + ear.q.length + " · " + ear.timbre;
     $("earFb").textContent = ""; $("earNext").hidden = true; $("earReplay").disabled = false;
     $("answers").querySelectorAll("button").forEach(function (b) { b.className = ""; b.disabled = false; });
     playQuestion();
@@ -607,13 +624,14 @@
     $("earFb").className = "feedback " + (ok ? "good" : "bad");
     $("earFb").textContent = (ok ? "Yes, " : "It was ") + name + "." + (ok && ms < 30000 ? " " + (ms / 1000).toFixed(1) + " s" : "") + (ok ? "" : " It comes back in a moment.");
     $("earScore").textContent = ear.right + " right";
-    if (ear.mode === "rel") setTimeout(function () { S.seq(walkHome(ear.cur), 0.32, 0.03); }, 250);
+    var tb = ear.timbre; if (ear.mode === "rel") setTimeout(function () { S.seq(walkHome(ear.cur), 0.32, 0.03, tb); }, 250);
     ear.i++;
     $("earNext").hidden = false; $("earNext").focus();
   }
   $("earStart").addEventListener("click", function () {
     S.ac(); var deck = ear.mode === "rel" ? "ear" : "ap";
-    ear.q = buildQueue(deck, ear.mode === "rel" ? 15 : 12).map(function (d) { return { d: d, retry: false }; }); ear.i = 0; ear.right = 0; ear.seen = {};
+    var qs = buildQueue(deck, ear.mode === "rel" ? 15 : 12), tim = SRS.planTimbres(qs.length, S.TIMBRES, Math.random);
+    ear.q = qs.map(function (d, i) { return { d: d, retry: false, timbre: tim[i] }; }); ear.i = 0; ear.right = 0; ear.seen = {};
     $("earStart").hidden = true; renderAnswers(); nextQuestion();
   });
   $("earReplay").addEventListener("click", playQuestion);

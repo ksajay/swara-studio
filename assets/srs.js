@@ -122,6 +122,15 @@
     return out;
   }
 
+  // Spread n questions evenly over the timbres, in a fresh random order each round.
+  function planTimbres(n, list, rand) {
+    rand = rand || Math.random;
+    var off = Math.floor(rand() * list.length), out = [];
+    for (var i = 0; i < n; i++) out.push(list[(i + off) % list.length]);
+    for (var j = out.length - 1; j > 0; j--) { var k = Math.floor(rand() * (j + 1)); var t = out[j]; out[j] = out[k]; out[k] = t; }
+    return out;
+  }
+
   /* ---------- Progress ---------- */
   function practised(st, d) { var x = st.days[d]; return !!x && (x.ear[0] + x.sing[0] + x.ap[0]) > 0; }
   function streak(st, today) {
@@ -176,7 +185,7 @@
     addDays: addDays, daysBetween: daysBetween, localToday: localToday,
     newState: newState, normalise: normalise, deckItems: deckItems, key: key, getCard: getCard, ensureCards: ensureCards,
     dueItems: dueItems, accuracy: accuracy, recordAnswer: recordAnswer, checkPromotion: checkPromotion,
-    buildQueue: buildQueue, streak: streak, holdDays: holdDays, mastered: mastered,
+    buildQueue: buildQueue, planTimbres: planTimbres, streak: streak, holdDays: holdDays, mastered: mastered,
     mergeStates: mergeStates, backupText: backupText, parseBackup: parseBackup
   };
 });

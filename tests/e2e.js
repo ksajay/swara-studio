@@ -12,7 +12,8 @@ const SA = 48, mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 const HARNESS = `
   window.__played = [];
   const _seq = Swara.seq;
-  Swara.seq = function (notes) { window.__played.push(notes.slice()); return _seq.apply(this, arguments); };
+  window.__timbres = [];
+  Swara.seq = function (notes, dur, gap, timbre) { window.__played.push(notes.slice()); window.__timbres.push(timbre || "harmonium"); return _seq.apply(this, arguments); };
   navigator.mediaDevices.getUserMedia = async function () {
     const c = Swara.ac(), dest = c.createMediaStreamDestination(), g = c.createGain();
     g.gain.value = 0.3; g.connect(dest);
@@ -81,6 +82,30 @@ const state = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("swa
       await page.waitForFunction(() => document.getElementById("tgEyebrow").textContent.startsWith("Sing this · 1"));
       await page.evaluate((hz) => window.__sing(hz), mtof(SA + 3)); // komal Ga: never a stage-1 target
       await page.waitForFunction(() => /Missed/.test(document.getElementById("tgMsg").textContent), null, { timeout: 12000 });
+    });
+
+    await step("the Sa picker shows your whole scale, and it follows a new Sa", async () => {
+      await fresh();
+      await page.evaluate(() => { document.getElementById("saPanel").hidden = false; });
+      assert.match(await page.textContent("#saSelect option:checked"), /^Sa = C3/);
+      const strip = await page.textContent("#saScale");
+      for (const bit of ["Sa", "C3", "Re", "D3", "Ga", "E3", "Ni", "B3"]) assert.ok(strip.includes(bit), "missing " + bit);
+      await page.selectOption("#saSelect", "50");
+      assert.ok((await page.textContent("#saScale")).includes("F♯3"), "Ga should be F-sharp 3 when Sa is D3");
+      assert.ok((await page.textContent("#todayScale")).includes("F♯3"), "Today shows the same scale");
+      await page.selectOption("#saSelect", String(SA));
+    });
+
+    await step("an ear round mixes at least three instrument sounds", async () => {
+      await fresh();
+      await page.click('[data-tab-btn="ear"]'); await page.click("#earStart");
+      for (let i = 0; i < 15; i++) {
+        const notes = await page.evaluate(() => window.__played[window.__played.length - 1]);
+        await page.click(`#answers button[data-a="${notes[1] - notes[0]}"]`);
+        await page.click("#earNext");
+      }
+      const used = await page.evaluate(() => [...new Set(window.__timbres)]);
+      assert.ok(used.length >= 3, "only " + used.join(", "));
     });
 
     await step("an ear session of right answers moves every due card up a box", async () => {

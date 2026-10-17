@@ -49,6 +49,42 @@
   }
   function octaveName(oct) { return oct < 0 ? "mandra (low)" : oct > 0 ? "taar (high)" : "madhya (middle)"; }
 
+
+  // Your shuddha scale from Sa to taar Sa, with the Western letter of each note.
+  function scale(saMidi) {
+    return [0, 2, 4, 5, 7, 9, 11, 12].map(function (d) {
+      var sw = SWARAS[d % 12];
+      return { deg: d, name: sw.name, dev: sw.dev, sol: sw.sol, midi: saMidi + d, letter: letter(saMidi + d) };
+    });
+  }
+
+  /* ---------- Timbres ----------
+     Ear questions rotate through several timbres: note naming is most accurate with piano and worst
+     with pure tones (Miyazaki 1989), and training across timbres helps recognition generalise. */
+  var TIMBRES = ["piano", "harmonium", "pluck"];
+  // Piano-like partials: slightly stretched above whole multiples (string stiffness), each quieter
+  // and shorter-lived than the one below.
+  function pianoPartials(f) {
+    var B = 0.0004, out = [];
+    for (var n = 1; n <= 8; n++) out.push({ freq: n * f * Math.sqrt(1 + B * n * n), amp: 1 / Math.pow(n, 1.3), decay: 1.6 / Math.pow(n, 0.7) });
+    return out;
+  }
+  // Plucked string (Karplus-Strong) with an all-pass stage so the pitch is exact, not rounded.
+  function pluckSamples(f, sr, dur) {
+    var len = Math.floor(sr * dur), y = new Float32Array(len), P = sr / f;
+    var L = Math.max(2, Math.floor(P - 0.5)), frac = P - 0.5 - L, C = (1 - frac) / (1 + frac);
+    var seed = 12345, rnd = function () { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648 * 2 - 1; };
+    var prevV = 0, prevAp = 0, i, peak = 0;
+    for (i = 0; i < len; i++) {
+      if (i < L) { y[i] = rnd(); continue; }
+      var v = 0.996 * 0.5 * (y[i - L] + y[i - L - 1 >= 0 ? i - L - 1 : 0]);
+      var ap = C * v + prevV - C * prevAp; prevV = v; prevAp = ap; y[i] = ap;
+    }
+    for (i = 0; i < len; i++) peak = Math.max(peak, Math.abs(y[i]));
+    if (peak > 0) for (i = 0; i < len; i++) y[i] /= peak;
+    return y;
+  }
+
   /* ---------- Pitch detection: YIN (de Cheveigné & Kawahara, 2002) ---------- */
   function detect(buf, sr) {
     var n = buf.length, i, t, rms = 0;
@@ -135,10 +171,9 @@
   function droneOn() { return !!droneTimer; }
   function droneSetSa(m) { droneSa = m; }
 
-  // Harmonium-like tone for target notes.
-  function tone(m, when, dur, vol) {
-    var c = ac(); var t = when || c.currentTime + 0.02; dur = dur || 1.0; vol = vol || 0.16;
-    var f = c.createBiquadFilter(), gn = c.createGain();
+  // Harmonium-like reed tone: steady, so it is the reference for singing targets.
+  function harmonium(m, t, dur, vol) {
+    var c = ac(), f = c.createBiquadFilter(), gn = c.createGain();
     f.type = "lowpass"; f.frequency.value = 2200;
     gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(vol, t + 0.05);
     gn.gain.setValueAtTime(vol, t + dur - 0.15); gn.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.1);
@@ -147,18 +182,42 @@
     var g2 = c.createGain(); g2.gain.value = 0.35;
     o1.connect(f); o2.connect(g2); g2.connect(f); f.connect(gn); gn.connect(master);
     o1.start(t); o2.start(t); o1.stop(t + dur + 0.15); o2.stop(t + dur + 0.15);
+  }
+  function piano(m, t, dur, vol) {
+    var c = ac(), out = c.createGain(); out.gain.value = vol * 1.6; out.connect(master);
+    pianoPartials(mtof(m)).forEach(function (p) {
+      if (p.freq > 12000) return;
+      var o = c.createOscillator(), g = c.createGain(); o.frequency.value = p.freq;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(p.amp * 0.5, t + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + Math.min(dur + 0.6, p.decay * 2.2));
+      o.connect(g); g.connect(out); o.start(t); o.stop(t + dur + 0.7);
+    });
+  }
+  var pluckCache = {};
+  function pluckTone(m, t, dur, vol) {
+    var c = ac(), k = m + ":" + c.sampleRate;
+    if (!pluckCache[k]) { var data = pluckSamples(mtof(m), c.sampleRate, 2.2), b = c.createBuffer(1, data.length, c.sampleRate); b.getChannelData(0).set(data); pluckCache[k] = b; }
+    var src = c.createBufferSource(), g = c.createGain(); src.buffer = pluckCache[k]; g.gain.value = vol * 1.4;
+    src.connect(g); g.connect(master); src.start(t); src.stop(t + Math.max(dur + 0.8, 1.5));
+  }
+  // Play one note in a timbre (default harmonium); returns its end time.
+  function tone(m, when, dur, vol, timbre) {
+    var c = ac(), t = when || c.currentTime + 0.02; dur = dur || 1.0; vol = vol || 0.16;
+    if (timbre === "piano") piano(m, t, dur, vol);
+    else if (timbre === "pluck") pluckTone(m, t, dur, vol);
+    else harmonium(m, t, dur, vol);
     return t + dur;
   }
   // Play a list of MIDI notes in sequence; returns the end time.
-  function seq(notes, dur, gap) {
+  function seq(notes, dur, gap, timbre) {
     var c = ac(); var t = c.currentTime + 0.05; dur = dur || 0.6; gap = gap || 0.08;
-    notes.forEach(function (m) { tone(m, t, dur); t += dur + gap; });
+    notes.forEach(function (m) { tone(m, t, dur, null, timbre); t += dur + gap; });
     return t;
   }
 
   g.Swara = {
     SWARAS: SWARAS, LETTERS: LETTERS, mtof: mtof, ftom: ftom, letter: letter, letterPc: letterPc,
-    describe: describe, pcDistance: pcDistance, swaraHTML: swaraHTML, octaveName: octaveName,
+    describe: describe, pcDistance: pcDistance, scale: scale, TIMBRES: TIMBRES, pianoPartials: pianoPartials, pluckSamples: pluckSamples, swaraHTML: swaraHTML, octaveName: octaveName,
     detect: detect, analyseBuffer: analyseBuffer,
     ac: ac, tone: tone, seq: seq, pluck: pluck,
     droneStart: droneStart, droneStop: droneStop, droneOn: droneOn, droneSetSa: droneSetSa
