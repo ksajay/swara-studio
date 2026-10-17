@@ -36,7 +36,10 @@ const HARNESS = `
 const results = [];
 async function step(name, fn) {
   try { await fn(); results.push(["ok", name]); console.log("ok  ", name); }
-  catch (e) { results.push(["FAIL", name]); console.log("FAIL", name, "\n     ", e.message.split("\n")[0]); }
+  catch (e) {
+    results.push(["FAIL", name]); console.log("FAIL", name, "\n     ", e.message.split("\n")[0]);
+    if (process.env.GITHUB_ACTIONS) console.log("::error title=e2e failed::" + name + " :: " + e.message.split("\n")[0].replace(/[\r\n%]/g, " "));
+  }
 }
 const state = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("swara-studio-v1")));
 
