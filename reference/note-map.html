@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Note Map</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Rozha+One&display=swap">
+<link rel="stylesheet" href="../assets/studio.css">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  body { margin: 0; }
+  td.sw-cell { font-family: var(--display); font-size: 1.15rem; white-space: nowrap; }
+  td .dev { font-size: 1.1rem; color: var(--muted); margin-left: 6px; }
+  tr.fixed-row td { background: var(--brass-soft); }
+  td.num, th.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .oct { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .oct > div { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 4px; text-align: center; }
+  .oct b { font-family: var(--display); font-weight: 400; font-size: 1.4rem; }
+  @media (max-width: 420px) { .oct { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <nav class="crumbs"><a href="../">← Swara Studio</a><a href="../lessons/0001-find-your-sa.html">Lesson 1</a><a href="memory-hacks.html">Memory hacks</a></nav>
+  <header class="stack">
+    <p class="eyebrow">Reference</p>
+    <h1>Note map</h1>
+    <p>The 12 notes from Sa to Ni, in Hindustani, Carnatic, movable do and Western names. Western letters depend on where your Sa sits, so pick it below.</p>
+    <div class="row"><label for="sa" class="muted">My Sa</label><select id="sa"></select><button type="button" id="playAll" class="brass">Play all 12</button></div>
+  </header>
+
+  <div class="card scroll-x">
+    <table>
+      <thead><tr><th class="num">Steps</th><th>Swara</th><th>Hindustani</th><th>Carnatic</th><th>Do re mi</th><th>Letter</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+  <p class="muted source">Brass rows are Sa and Pa, which never change. A line under a name means komal (flat); a line over it means tivra (sharp). Carnatic names follow <a href="https://ccrma.stanford.edu/~arvindh/cmt/the_12_notes.html">Stanford CCRMA's table</a>; some positions have two Carnatic names (R2 is also G1, G2 is also R3, D2 is also N1, N2 is also D3), and which one is used depends on the raga.</p>
+
+  <section class="stack">
+    <h2>Three octaves of your voice</h2>
+    <div class="oct">
+      <div><span class="eyebrow">Mandra · low</span><b>S<sub>•</sub></b><span class="muted">Dot below in Bhatkhande</span></div>
+      <div><span class="eyebrow">Madhya · middle</span><b>S</b><span class="muted">No mark</span></div>
+      <div><span class="eyebrow">Taar · high</span><b>S<sup>•</sup></b><span class="muted">Dot above in Bhatkhande</span></div>
+    </div>
+    <p class="muted source">Marks follow <a href="https://www.nios.ac.in/media/documents/Hindustani_Music_242/hindustanimusictheorybook1/HMB1Ch5.pdf">NIOS Hindustani theory, ch. 5</a>. Carnatic books vary: <a href="https://karnatik.com/beginners.pdf">karnatik.com</a> writes the middle octave in lowercase (s r g), the upper octave in capitals (S R G) and the lower octave with a dot after the note (s.).</p>
+  </section>
+
+  <section class="stack">
+    <h2>Western intervals, for later</h2>
+    <p>Each swara is also a named distance from Sa: Re is a major 2nd, Ga a major 3rd, Ma a perfect 4th, Pa a perfect 5th, Dha a major 6th, Ni a major 7th, and taar Sa an octave. Komal notes are the minor versions; tivra Ma is the augmented 4th.</p>
+  </section>
+</main>
+<script src="../assets/swara.js"></script>
+<script>
+(function () {
+  var S = window.Swara, sel = document.getElementById("sa"), m = 48, LS = "swara-studio-v1";
+  var HIND = ["Sa", "komal Re", "Re", "komal Ga", "Ga", "Ma", "tivra Ma", "Pa", "komal Dha", "Dha", "komal Ni", "Ni"];
+  var CARN = ["Shadjam (S)", "Suddha Rishabham (R1)", "Chatusruthi Rishabham (R2)", "Sadharana Gandharam (G2)", "Antara Gandharam (G3)", "Suddha Madhyamam (M1)", "Prati Madhyamam (M2)", "Panchamam (P)", "Suddha Dhaivatham (D1)", "Chatusruthi Dhaivatham (D2)", "Kaisiki Nishadham (N2)", "Kakali Nishadham (N3)"];
+  try { var raw = localStorage.getItem(LS); if (raw) { var s = JSON.parse(raw); if (s.saMidi) m = s.saMidi; } } catch (e) {}
+  for (var i = 40; i <= 67; i++) { var o = document.createElement("option"); o.value = i; o.textContent = S.letter(i); sel.appendChild(o); }
+  sel.value = String(m);
+  function render() {
+    document.getElementById("rows").innerHTML = S.SWARAS.map(function (sw, d) {
+      return '<tr class="' + (sw.fixed ? "fixed-row" : "") + '"><td class="num">' + d + '</td><td class="sw-cell">' + S.swaraHTML(d) + '<span class="dev">' + S.swaraHTML(d, { dev: true }) + "</span></td><td>" + HIND[d] + "</td><td>" + CARN[d] + "</td><td>" + sw.sol + '</td><td class="num">' + S.letter(m + d) + '</td><td><button type="button" data-d="' + d + '" aria-label="Play ' + HIND[d] + '">Play</button></td></tr>';
+    }).join("");
+    document.querySelectorAll("[data-d]").forEach(function (b) { b.addEventListener("click", function () { S.seq([m, m + (+b.dataset.d)], 0.6, 0.12); }); });
+  }
+  sel.addEventListener("change", function () { m = +sel.value; render(); });
+  document.getElementById("playAll").addEventListener("click", function () { var l = []; for (var d = 0; d <= 12; d++) l.push(m + d); S.seq(l, 0.4, 0.05); });
+  render();
+})();
+</script>
+</body>
+</html>

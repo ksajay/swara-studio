@@ -1,0 +1,23 @@
+{
+  "name": "Swara Studio",
+  "short_name": "Swara",
+  "description": "Hear, name and sing musical notes, with Indian swaras and Western notes side by side.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#121129",
+  "theme_color": "#121129",
+  "categories": ["education", "music"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Ear reviews", "url": "./#ear", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Sing", "url": "./#sing", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "swara-studio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Hear, name and sing musical notes, with Indian swaras and Western notes side by side.",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "test:e2e": "python3 build.py && node tests/e2e.js",
+    "build": "python3 build.py"
+  },
+  "devDependencies": {
+    "playwright": "1.56.0"
+  }
+}

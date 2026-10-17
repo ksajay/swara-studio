@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lesson 1 · Find your Sa</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Rozha+One&display=swap">
+<link rel="stylesheet" href="../assets/studio.css">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  body { margin: 0; }
+  .win { font-size: 1.1rem; }
+  .picker { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; }
+  .picker .now { text-align: center; font-family: var(--display); font-size: 1.8rem; }
+  .picker .now small { display: block; font-family: var(--mono); font-size: 0.85rem; color: var(--muted); }
+  ol.do { margin: 0; padding-left: 1.3em; display: grid; gap: 10px; }
+  .hz { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <nav class="crumbs"><a href="../">← Swara Studio</a><a href="../reference/note-map.html">Note map</a><a href="../reference/memory-hacks.html">Memory hacks</a></nav>
+
+  <header class="stack">
+    <p class="eyebrow">Stage 1 · Hear and match · Lesson 1 · 8 minutes</p>
+    <h1>Find your Sa</h1>
+    <p class="win">Today's win: you pick a home note that suits your voice and hold it in tune for three seconds.</p>
+  </header>
+
+  <section class="stack">
+    <h2>Four ideas, then we sing</h2>
+    <p><b>1. Pitch is how high or low a sound is.</b> It is measured in hertz (Hz), the number of vibrations per second. A note at <span class="hz">220 Hz</span> doubled to <span class="hz">440 Hz</span> sounds like the same note, only higher. That doubling is called an <b>octave</b>.</p>
+    <p><b>2. Sa is your home note, and you choose it.</b> In Indian music Sa is not a fixed pitch: the performer sets it wherever suits the voice, and every other swara is placed relative to it (<a href="https://books.openbookpublishers.com/10.11647/obp.0313/ch1.xhtml">Clarke, ch. 1</a>). The Western letters C, D, E are fixed pitches. So "my Sa is C♯" just means you chose to sit your home on C♯ (<a href="https://ccrma.stanford.edu/~arvindh/cmt/the_12_notes.html">Stanford CCRMA</a>).</p>
+    <p><b>3. A drone keeps home in your ears.</b> The tanpura or shruti box plays Sa and its fifth, Pa, all the time, and beginners are told to listen to it carefully and pick a Sa that lets them sing comfortably across about two octaves (<a href="https://karnatik.com/beginners.pdf">karnatik.com beginners guide</a>).</p>
+    <p><b>4. "In tune" has a number.</b> One step between neighbouring notes is 100 <b>cents</b>. Swara Studio's green zone is 25 cents either side of the note: a quarter of a step.</p>
+    <div class="hack"><span class="eyebrow">Memory hack</span><p>Think of Sa as the tonic you return to, like home in a story. Do re mi works the same way: "do" can sit on any letter, which is why it is called movable do.</p></div>
+  </section>
+
+  <section class="card">
+    <h2>Step 1 · Try candidate Sa notes</h2>
+    <p class="muted">Tap Play, hum along very softly on "mm". Step down until humming starts to feel growly or breathy, then step back up one or two. Pick a note you could hum for a minute without effort.</p>
+    <div class="picker">
+      <button type="button" id="down" aria-label="Lower">Lower</button>
+      <div class="now" id="now">C3<small>131 Hz</small></div>
+      <button type="button" id="up" aria-label="Higher">Higher</button>
+    </div>
+    <div class="row">
+      <button type="button" class="brass" id="play">Play this note</button>
+      <button type="button" class="primary" id="keep">Make this my Sa</button>
+    </div>
+    <p class="msg" id="keepMsg">Lower voices often land around C3 to E3, higher voices around G3 to C4. Trust your comfort, not the letter.</p>
+  </section>
+
+  <section class="card">
+    <h2>Step 2 · Sit inside the drone</h2>
+    <ol class="do">
+      <li>Put earphones in and start the drone.</li>
+      <li>Breathe in, and sing a soft, open "aa" on Sa for one full breath. Do this three times.</li>
+      <li>On the fourth breath, slide slowly up and back down to Sa, like a siren. Notice the moment it "locks" with the drone: the buzz smooths out.</li>
+    </ol>
+    <div class="row"><button type="button" class="brass" id="drone" aria-pressed="false">Start drone</button><button type="button" id="sapa">Play Sa, Pa, Sa</button></div>
+    <div class="hack"><span class="eyebrow">Memory hack</span><p>Sa up to Pa is the leap on the second "twinkle" in Twinkle, Twinkle. Sing that tune starting on your Sa and the second "twinkle" lands on Pa.</p></div>
+  </section>
+
+  <section class="card">
+    <h2>Step 3 · Score it</h2>
+    <p>Open Swara Studio, choose <b>Sing → Hold Sa</b>. On the standalone app, sing live and hold the line in the green band for 3 seconds. Inside Claude, record 5 seconds of "aa" with your phone's recorder and upload it.</p>
+    <p>This is gate 1 of Stage 1: three seconds in the green, on three different days. The app counts the days for you.</p>
+    <a class="btn primary" href="../" style="justify-self:start">Open Swara Studio</a>
+  </section>
+
+  <section class="card">
+    <h2>Check yourself</h2>
+    <div class="quiz" data-quiz='[
+      {"q":"What is Sa?","opts":["Your chosen home note","Always the letter C","The loudest sung note"],"a":0,"why":"Sa moves with the singer. The letter it sits on is your choice."},
+      {"q":"Which two notes does a tanpura drone keep sounding?","opts":["Ga and Ni","Re and Dha","Sa and Pa"],"a":2,"why":"Sa and its fifth, Pa. Neither ever changes into a komal or tivra form."},
+      {"q":"The needle sits at −40 cents. What should you do?","opts":["Sing much more loudly","Slide your voice up","Slide your voice down"],"a":1,"why":"Minus means flat (too low), so raise the pitch a touch."},
+      {"q":"Why do review cards return after 1, 2, 4, 7 and 14 days?","opts":["It saves phone battery","Notes expire after days","Spacing builds lasting memory"],"a":2,"why":"Recalling something just as it starts to fade is what makes it stick long-term."}
+    ]'></div>
+  </section>
+
+  <section class="stack">
+    <h2>Go deeper</h2>
+    <p class="source"><b>Primary source:</b> the <a href="https://karnatik.com/beginners.pdf">karnatik.com beginners guide</a>, the preparation section on the shruti box and choosing your pitch. Five minutes of reading.</p>
+    <div class="callout"><p><b>Stuck or curious?</b> Ask Claude in your Learning Music project. For example: "My Sa feels too low when I slide up, should I move it?" Your teacher is one message away.</p></div>
+    <p class="muted">Next: Lesson 2, Sa and Pa, the notes that never move. It unlocks once you have held Sa on your first day.</p>
+  </section>
+</main>
+<script src="../assets/swara.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+(function () {
+  var S = window.Swara, m = 48, LS = "swara-studio-v1";
+  try { var raw = localStorage.getItem(LS); if (raw) { var s = JSON.parse(raw); if (s.saMidi) m = s.saMidi; } } catch (e) {}
+  function show() { document.getElementById("now").innerHTML = S.letter(m) + "<small>" + S.mtof(m).toFixed(0) + " Hz</small>"; S.droneSetSa(m); }
+  show();
+  document.getElementById("down").addEventListener("click", function () { if (m > 40) m--; show(); S.seq([m], 1.2); });
+  document.getElementById("up").addEventListener("click", function () { if (m < 67) m++; show(); S.seq([m], 1.2); });
+  document.getElementById("play").addEventListener("click", function () { S.seq([m], 1.6); });
+  document.getElementById("sapa").addEventListener("click", function () { S.seq([m, m + 7, m], 0.9, 0.15); });
+  document.getElementById("drone").addEventListener("click", function (e) {
+    if (S.droneOn()) S.droneStop(); else S.droneStart(m);
+    e.currentTarget.setAttribute("aria-pressed", String(S.droneOn()));
+    e.currentTarget.textContent = S.droneOn() ? "Stop drone" : "Start drone";
+  });
+  document.getElementById("keep").addEventListener("click", function () {
+    var msg = document.getElementById("keepMsg");
+    try {
+      var raw = localStorage.getItem(LS), s = raw ? JSON.parse(raw) : {};
+      s.saMidi = m; s.saSet = true; s.updated = Date.now();
+      localStorage.setItem(LS, JSON.stringify(s));
+      msg.textContent = "Saved: your Sa is " + S.letter(m) + ". Swara Studio will use it.";
+    } catch (e) { msg.textContent = "Your Sa is " + S.letter(m) + ". Set it in Swara Studio by tapping the Sa button at the top."; }
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,789 @@
+<title>Swara Studio</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Rozha+One&display=swap">
+<link rel="stylesheet" href="assets/studio.css">
+<style>
+  html, body { min-height: 100%; }
+  body { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+  .top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); display: flex; justify-content: space-between; align-items: center; gap: 10px; padding-block: 12px; max-width: 720px; margin: 0 auto; border-bottom: 1px solid var(--line); }
+  .brand { font-family: var(--display); font-size: 1.6rem; line-height: 1; }
+  .brand small { display: block; font-family: var(--body); font-size: 0.78rem; color: var(--muted); letter-spacing: 0.04em; margin-top: 4px; }
+  .sa-chip { border-color: var(--brass); background: var(--brass-soft); font-family: var(--mono); font-size: 0.9rem; padding: 8px 14px; }
+  .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--surface); border-top: 1px solid var(--line);
+    padding: 6px max(16px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+  .tabs .in { max-width: 720px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+  .tabs button { border: 0; border-radius: 12px; flex-direction: column; gap: 2px; padding: 6px 2px; min-height: 52px; font-size: 0.8rem; font-weight: 600; background: transparent; color: var(--muted); }
+  .tabs button .ic { font-family: var(--display); font-size: 1.15rem; line-height: 1; color: var(--ink); }
+  .tabs button[aria-current="page"] { background: var(--accent-soft); color: var(--ink); }
+
+  /* Today */
+  .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; counter-reset: step; }
+  .steps li { counter-increment: step; display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+  .steps li::before { content: counter(step); font-family: var(--display); font-size: 1.3rem; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--sunk); }
+  .steps li.done::before { content: "✓"; background: var(--good-soft); color: var(--good); font-family: var(--body); font-weight: 700; }
+  .steps li > div { min-width: 0; display: grid; gap: 2px; }
+  .steps .t { font-weight: 600; }
+  .steps .d { font-size: 0.92rem; color: var(--muted); }
+  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; display: grid; gap: 2px; }
+  .stat .v { font-family: var(--mono); font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+  .stat .l { font-size: 0.8rem; color: var(--muted); }
+
+  /* Sing */
+  .readout { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+  .big { font-family: var(--display); font-size: 3.6rem; line-height: 1; }
+  .big .dev { font-size: 2.2rem; margin-left: 10px; color: var(--muted); }
+  .sub { font-family: var(--mono); font-size: 0.95rem; color: var(--muted); text-align: right; }
+  .meter { position: relative; height: 28px; border-radius: 999px; background: linear-gradient(90deg, var(--bad-soft), var(--good-soft) 35%, var(--good-soft) 65%, var(--bad-soft)); border: 1px solid var(--line); }
+  .meter .mid { position: absolute; left: 50%; top: 3px; bottom: 3px; width: 2px; background: var(--good); transform: translateX(-1px); }
+  .meter .needle { position: absolute; top: -4px; width: 4px; height: 34px; border-radius: 2px; background: var(--ink); left: 50%; transform: translateX(-2px); transition: left 80ms linear; }
+  .meter-labels { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 0.75rem; color: var(--muted); }
+  canvas.lane { width: 100%; height: 280px; display: block; border-radius: 12px; background: var(--sunk); }
+  .target { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .target .name { font-family: var(--display); font-size: 2rem; }
+  .hold { height: 10px; border-radius: 999px; background: var(--sunk); overflow: hidden; }
+  .hold > i { display: block; height: 100%; width: 0; background: var(--good); transition: width 80ms linear; }
+  .msg { font-size: 0.95rem; color: var(--muted); }
+  .msg.warn { color: var(--bad); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; background: var(--surface); gap: 3px; flex-wrap: wrap; }
+  .seg button { border: 0; min-height: 38px; padding: 6px 14px; }
+
+  /* Ear */
+  .answers { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+  .answers button { border-radius: 12px; flex-direction: column; gap: 0; min-height: 64px; }
+  .answers button .a1 { font-family: var(--display); font-size: 1.35rem; font-weight: 400; }
+  .answers button .a2 { font-size: 0.78rem; color: var(--muted); font-weight: 500; }
+  .answers button.right { background: var(--good-soft); border-color: var(--good); }
+  .answers button.wrong { background: var(--bad-soft); border-color: var(--bad); }
+  .feedback { min-height: 1.6em; font-weight: 600; }
+  .feedback.good { color: var(--good); } .feedback.bad { color: var(--bad); }
+  .bar { height: 8px; border-radius: 999px; background: var(--sunk); overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--accent); }
+
+  /* Progress */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+  .kcard { border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: grid; gap: 6px; background: var(--surface); }
+  .kcard .n { font-family: var(--display); font-size: 1.25rem; }
+  .pips { display: flex; gap: 3px; }
+  .pips i { flex: 1; height: 6px; border-radius: 3px; background: var(--sunk); }
+  .pips i.on { background: var(--accent); }
+  .kcard .due { font-size: 0.78rem; color: var(--muted); font-family: var(--mono); }
+  .kcard.locked { opacity: 0.45; }
+  .gates { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .gates li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; }
+  .gates .box { width: 24px; height: 24px; border-radius: 7px; border: 2px solid var(--line); display: grid; place-items: center; font-weight: 700; color: var(--good); }
+  .gates li.ok .box { background: var(--good-soft); border-color: var(--good); }
+  .gates button.box { padding: 0; min-height: 24px; cursor: pointer; }
+  .gates .who { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-left: 6px; }
+  svg.chart text { fill: var(--muted); font-family: var(--mono); font-size: 11px; }
+  .copybox { font-family: var(--mono); font-size: 0.85rem; background: var(--sunk); border-radius: 10px; padding: 10px; user-select: all; overflow-wrap: anywhere; }
+  .stage-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+  .stage-list li { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 4px; background: var(--surface); }
+  .stage-list li.now { border-color: var(--accent); background: var(--accent-soft); }
+  .linklist { display: grid; gap: 8px; }
+  .linklist a { display: flex; justify-content: space-between; gap: 10px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; text-decoration: none; color: var(--ink); }
+  .linklist a span:last-child { color: var(--muted); font-size: 0.9rem; }
+  .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 12px; z-index: 20; font-weight: 600; max-width: calc(100% - 32px); }
+</style>
+
+<header class="top">
+  <div class="brand">Swara Studio<small>Hear it · name it · sing it</small></div>
+  <button class="sa-chip" id="saChip" type="button" aria-expanded="false" aria-controls="saPanel">Sa = C3</button>
+</header>
+
+<main class="wrap">
+  <section class="card" id="saPanel" hidden>
+    <h3>Your Sa</h3>
+    <p class="muted">Sa is your home note. Pick it once, where your voice is relaxed: a little lower than your speaking voice. Every swara is measured from it.</p>
+    <div class="row">
+      <label for="saSelect" class="muted">Sa</label>
+      <select id="saSelect"></select>
+      <button type="button" id="saPlay" class="brass">Play Sa</button>
+      <button type="button" id="saFind">Find from my voice</button>
+    </div>
+    <p class="msg" id="saMsg"></p>
+  </section>
+
+  <!-- TODAY -->
+  <section id="tab-today" class="stack" data-tab>
+    <div class="stack">
+      <p class="eyebrow" id="todayDate">Today</p>
+      <h1 id="todayTitle">Your 12 minutes</h1>
+    </div>
+    <div class="stat-row">
+      <div class="stat"><span class="v" id="stStreak">0</span><span class="l">day streak</span></div>
+      <div class="stat"><span class="v" id="stDue">0</span><span class="l">cards due now</span></div>
+      <div class="stat"><span class="v" id="stMastered">0</span><span class="l">cards mastered</span></div>
+    </div>
+    <ol class="steps" id="steps">
+      <li id="stepTune"><div><span class="t">Tune in · 2 min</span><span class="d">Drone on. Sing "aa" on Sa and hold it in the green.</span></div><button type="button" data-go="tune">Start</button></li>
+      <li id="stepEar"><div><span class="t">Ear reviews · 5 min</span><span class="d" id="stepEarD">Name the notes that are due.</span></div><button type="button" class="primary" data-go="ear">Start</button></li>
+      <li id="stepSing"><div><span class="t">Sing reviews · 4 min</span><span class="d" id="stepSingD">Sing the notes that are due.</span></div><button type="button" data-go="sing">Start</button></li>
+      <li id="stepAp"><div><span class="t">Side quest · 2 min</span><span class="d">Optional. Name notes with no Sa (perfect pitch training).</span></div><button type="button" data-go="ap">Start</button></li>
+    </ol>
+    <div class="card">
+      <div class="row" style="justify-content: space-between"><h3 id="stageName">Stage 1 · Hear and match</h3><span class="chip" id="stageStep">Step 1 of 9</span></div>
+      <p class="muted" id="stageHelp">You unlock the next note when every card in your set reaches box 2 and you score 85% over your last 20 answers.</p>
+      <div class="row" id="stageNotes"></div>
+      <div class="stack" style="gap:4px"><div class="bar"><i id="stageBar" style="width:0%"></i></div><span class="msg num" id="stageAcc">Last 20 answers: none yet</span></div>
+    </div>
+    <div class="hack" id="hackOfDay"></div>
+  </section>
+
+  <!-- SING -->
+  <section id="tab-sing" class="stack" data-tab hidden>
+    <div class="row" style="justify-content: space-between">
+      <h2>Sing</h2>
+      <div class="seg" role="group" aria-label="Sing mode">
+        <button type="button" id="modeFree" aria-pressed="true">Free</button>
+        <button type="button" id="modeTune" aria-pressed="false">Hold Sa</button>
+        <button type="button" id="modeMatch" aria-pressed="false">Reviews</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="readout">
+        <div class="big" id="rdSwara">–</div>
+        <div class="sub" id="rdSub">Hz · note · cents</div>
+      </div>
+      <div class="meter" aria-hidden="true"><span class="mid"></span><span class="needle" id="needle"></span></div>
+      <div class="meter-labels"><span>−50 flat</span><span>in tune</span><span>sharp +50</span></div>
+      <canvas class="lane" id="lane" width="700" height="280" aria-label="Your pitch over the last few seconds, against swara lines"></canvas>
+      <div class="panel" id="targetPanel" hidden>
+        <div class="target"><div><span class="eyebrow" id="tgEyebrow">Sing this</span><div class="name" id="tgName">Sa</div></div>
+          <div class="row"><button type="button" id="tgPlay" class="brass">Hear it</button><button type="button" id="tgSkip">Skip</button></div></div>
+        <div class="hold"><i id="holdBar"></i></div>
+        <span class="msg" id="tgMsg">Hold the note in the green for under a second to score it.</span>
+      </div>
+      <div class="row">
+        <button type="button" class="primary" id="micBtn">Start listening</button>
+        <button type="button" id="droneBtn" class="brass" aria-pressed="false">Drone</button>
+        <label class="btn" for="fileIn">Upload a recording</label>
+        <input type="file" id="fileIn" accept="audio/*" hidden>
+      </div>
+      <p class="msg" id="micMsg">Use earphones so the drone does not leak into the microphone.</p>
+    </div>
+  </section>
+
+  <!-- EAR -->
+  <section id="tab-ear" class="stack" data-tab hidden>
+    <div class="row" style="justify-content: space-between">
+      <h2>Ear</h2>
+      <div class="seg" role="group" aria-label="Ear mode">
+        <button type="button" id="earRel" aria-pressed="true">With Sa</button>
+        <button type="button" id="earAp" aria-pressed="false">No Sa</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content: space-between">
+        <span class="eyebrow" id="earCount">Ready</span>
+        <span class="num muted" id="earScore"></span>
+      </div>
+      <p id="earPrompt">You hear Sa, then a mystery note. Name the mystery note.</p>
+      <div class="row">
+        <button type="button" class="primary" id="earStart">Start reviews</button>
+        <button type="button" id="earReplay" disabled>Play again</button>
+        <button type="button" id="earNext" hidden>Next</button>
+      </div>
+      <div class="answers" id="answers"></div>
+      <div class="feedback" id="earFb" aria-live="polite"></div>
+    </div>
+    <p class="msg" id="earNote"></p>
+  </section>
+
+  <!-- PROGRESS -->
+  <section id="tab-progress" class="stack" data-tab hidden>
+    <h2>Progress</h2>
+    <div class="card">
+      <h3>Last 14 days</h3>
+      <div class="scroll-x"><svg class="chart" id="chart" viewBox="0 0 360 170" width="100%" role="img" aria-label="Answers per day for the last 14 days"></svg></div>
+      <p class="msg" id="chartNote"></p>
+    </div>
+    <div class="card"><h3>Ear cards</h3><p class="muted">Five pips = five boxes. A card comes back after 1, 2, 4, 7 or 14 days as it climbs; a miss sends it back to box 1.</p><div class="cards" id="cardsEar"></div></div>
+    <div class="card"><h3>Sing cards</h3><div class="cards" id="cardsSing"></div><p class="msg" id="singAcc"></p></div>
+    <div class="card"><h3>Side quest cards</h3><div class="cards" id="cardsAp"></div></div>
+    <div class="card"><h3>Stage gates</h3><div class="stack" id="gates"></div></div>
+    <div class="card">
+      <h3>Monthly check-in with Claude</h3>
+      <p class="muted">Your progress is saved to your account, and Claude can read it. Once a month (or whenever you feel stuck), send this in the Learning Music project:</p>
+      <div class="copybox" id="askText">Review my Swara Studio progress, update my learning records, and make my next lesson.</div>
+      <div class="row"><button type="button" id="copyAsk">Copy</button><span class="msg" id="saveState"></span></div>
+    </div>
+    <div class="card">
+      <h3>Backup and move devices</h3>
+      <p class="muted">The installed app keeps progress on this phone. Copy a backup to paste into Claude for your check-in, or to restore on another device.</p>
+      <div class="row"><button type="button" id="copyBackup">Copy progress backup</button><button type="button" id="showRestore">Restore from backup</button></div>
+      <div class="stack" id="restoreBox" hidden>
+        <label for="restoreText" class="muted">Paste a backup from another device. It is merged in: each card keeps its most recent review, nothing is lost.</label>
+        <textarea id="restoreText" rows="4" style="width:100%;font:inherit;font-family:var(--mono);font-size:0.8rem;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:10px"></textarea>
+        <div class="row"><button type="button" class="primary" id="doRestore">Merge backup</button><span class="msg" id="restoreMsg"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LEARN -->
+  <section id="tab-learn" class="stack" data-tab hidden>
+    <h2>Learn</h2>
+    <div class="linklist">
+      <a href="lessons/0001-find-your-sa.html"><span>Lesson 1 · Find your Sa</span><span>8 min</span></a>
+      <a href="reference/note-map.html"><span>Note map · swaras, do re mi, letters</span><span>Reference</span></a>
+      <a href="reference/memory-hacks.html"><span>Memory hacks · notation and rhythm</span><span>Reference</span></a>
+    </div>
+    <p class="muted">New lessons arrive one at a time, chosen from your progress. Ask Claude for the next one when today's gates look close.</p>
+    <div class="card" id="installCard" hidden>
+      <h3>Install Swara Studio</h3>
+      <p class="muted">Add it to your home screen: it opens full-screen, works offline and listens live.</p>
+      <button type="button" class="primary" id="installBtn" style="justify-self:start">Install app</button>
+    </div>
+    <h3>The road</h3>
+    <ol class="stage-list" id="stageList"></ol>
+    <div class="card" id="liveCard">
+      <h3>Singing live</h3>
+      <p>Inside the Claude app, pages cannot use the microphone, so here you record yourself with your phone's recorder and upload the file. For live feedback while you sing, use the installed Swara Studio app on your phone. Its progress stays on the phone; use Progress → Backup to bring it here.</p>
+    </div>
+  </section>
+</main>
+
+<nav class="tabs" aria-label="Sections"><div class="in">
+  <button type="button" data-tab-btn="today" aria-current="page"><span class="ic">सा</span>Today</button>
+  <button type="button" data-tab-btn="sing"><span class="ic">~</span>Sing</button>
+  <button type="button" data-tab-btn="ear"><span class="ic">?</span>Ear</button>
+  <button type="button" data-tab-btn="progress"><span class="ic">↗</span>Progress</button>
+  <button type="button" data-tab-btn="learn"><span class="ic">≡</span>Learn</button>
+</div></nav>
+<div class="toast" id="toast" hidden></div>
+
+<script src="assets/swara.js"></script>
+<script src="assets/srs.js"></script>
+<script>
+(function () {
+  "use strict";
+  var S = window.Swara, $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- Curriculum data ---------- */
+  var STAGES = SRS.STAGES, AP_STAGES = SRS.AP_STAGES;
+  var CUR = [
+    { n: 1, name: "Hear and match", weeks: "Weeks 1–3", goal: "Find your Sa and sing Sa, Pa and Ga in tune." },
+    { n: 2, name: "Name the seven swaras", weeks: "Weeks 4–9", goal: "Name and sing all seven shuddha swaras against Sa." },
+    { n: 3, name: "All twelve notes", weeks: "Weeks 10–13", goal: "Hear komal and tivra notes and know their Western names." },
+    { n: 4, name: "Read it", weeks: "Weeks 14–19", goal: "Read sargam and simple staff notation, and keep time." },
+    { n: 5, name: "Sing music", weeks: "Weeks 20–24", goal: "Sing real pieces from notation, in tune and in time." }
+  ];
+  var HACKS = [
+    "<b>Sa and Pa never move.</b> They have no komal or tivra form, which is why the tanpura plays them all day. In do re mi they are do and sol.",
+    "<b>Four go soft, one goes sharp.</b> Re, Ga, Dha and Ni can be komal (flat). Only Ma can be tivra (sharp).",
+    "<b>Twinkle, Twinkle is Sa to Pa.</b> The jump on the second \"twinkle\" is exactly Sa up to Pa.",
+    "<b>Happy Birthday is Sa to Re.</b> \"Hap-py\" sits on one note and \"birth\" steps up one whole tone.",
+    "<b>Ni leans home.</b> Ni sounds restless because it is a half step below taar Sa. If a note wants to fall upward into Sa, it is Ni.",
+    "<b>Sing \"aa\" before words.</b> Researchers found people sing more accurately on a syllable than with lyrics, so every drill here starts with \"aa\".",
+    "<b>Tiny and daily beats long and weekly.</b> Spacing reviews over days builds long-term memory; the card boxes do the spacing for you."
+  ];
+
+  /* ---------- State and storage (rules live in assets/srs.js, tested in tests/srs.test.js) ---------- */
+  function today(off) { return SRS.addDays(SRS.localToday(), off || 0); }
+  var daysBetween = SRS.daysBetween, fresh = SRS.newState;
+  var st = fresh(), LS = "swara-studio-v1", db = null, docRef = null, writing = false, pending = false, saveTimer = null;
+  try { var raw = localStorage.getItem(LS); if (raw) st = SRS.normalise(JSON.parse(raw)); } catch (e) {}
+  // Ask the browser not to evict progress when storage runs low (installed apps usually get this).
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+
+  function persist() {
+    st.updated = Date.now();
+    try { localStorage.setItem(LS, JSON.stringify(st)); } catch (e) {}
+    clearTimeout(saveTimer); saveTimer = setTimeout(pushRemote, 1500);
+  }
+  function pushRemote() {
+    if (!docRef) return;
+    if (writing) { pending = true; return; }
+    writing = true;
+    docRef.set(JSON.parse(JSON.stringify(st))).then(function () { $("saveState").textContent = "Saved to your account."; })
+      .catch(function () { $("saveState").textContent = "Saved on this device only."; })
+      .then(function () { writing = false; if (pending) { pending = false; pushRemote(); } });
+  }
+  function connectRemote() {
+    var C = window.claude; if (!C || !C.use) { $("saveState").textContent = "Saved on this device."; return; }
+    Promise.all([C.use("db"), C.use("user")]).then(function (r) {
+      db = r[0]; var user = r[1];
+      if (!db || !user) { $("saveState").textContent = "Saved on this device."; return; }
+      return user.id().then(function (uid) {
+        if (!uid) return;
+        docRef = db.doc("data/users/" + uid + "/studio");
+        return docRef.get().then(function (snap) {
+          // Merge rather than overwrite, so practice done on either copy is never lost.
+          if (snap.exists) { st = SRS.mergeStates(st, snap.data()); try { localStorage.setItem(LS, JSON.stringify(st)); } catch (e) {} ensureCards(); renderAll(); }
+          pushRemote();
+          $("saveState").textContent = "Saved to your account.";
+        });
+      });
+    }).catch(function () { $("saveState").textContent = "Saved on this device."; });
+  }
+
+  /* ---------- Cards (thin wrappers over SRS) ---------- */
+  function deckItems(deck) { return SRS.deckItems(st, deck); }
+  var key = SRS.key;
+  function card(deck, item) { return SRS.getCard(st, deck, item, today()); }
+  function ensureCards() { SRS.ensureCards(st, today()); }
+  function dueItems(deck) { return SRS.dueItems(st, deck, today()); }
+  function acc(deck) { return SRS.accuracy(st.recent[deck]); }
+  function grade(deck, item, ok, first, retry) {
+    var res = SRS.recordAnswer(st, deck, item, ok, { first: first, retry: !!retry, today: today() });
+    if (res.unlocked.length) toast("Unlocked: " + res.unlocked.map(function (i) { return deck === "ap" ? S.letterPc(i) : S.SWARAS[i].full; }).join(" and "));
+    persist();
+  }
+  function buildQueue(deck, n) { return SRS.buildQueue(st, deck, n, today(), Math.random); }
+  function streak() { return SRS.streak(st, today()); }
+
+  /* ---------- UI helpers ---------- */
+  function toast(t) { var el = $("toast"); el.textContent = t; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(function () { el.hidden = true; }, 2600); }
+  function swaraLabel(deg) { return S.swaraHTML(deg) + ' <span class="muted">' + S.SWARAS[deg].sol + "</span>"; }
+  function show(tab) {
+    document.querySelectorAll("[data-tab]").forEach(function (s) { s.hidden = s.id !== "tab-" + tab; });
+    document.querySelectorAll("[data-tab-btn]").forEach(function (b) { if (b.dataset.tabBtn === tab) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
+    if (st.saSet) { $("saPanel").hidden = true; $("saChip").setAttribute("aria-expanded", "false"); }
+    if (tab === "progress") renderProgress();
+    if (tab === "learn") renderLearn();
+    if (tab === "today") renderToday();
+    window.scrollTo(0, 0);
+  }
+  document.querySelectorAll("[data-tab-btn]").forEach(function (b) { b.addEventListener("click", function () { show(b.dataset.tabBtn); }); });
+
+  /* ---------- Sa panel ---------- */
+  (function () {
+    var sel = $("saSelect");
+    for (var m = 40; m <= 67; m++) { var o = document.createElement("option"); o.value = m; o.textContent = S.letter(m) + " · " + S.mtof(m).toFixed(0) + " Hz"; sel.appendChild(o); }
+    sel.addEventListener("change", function () { setSa(+sel.value); });
+    $("saChip").addEventListener("click", function () { var p = $("saPanel"); p.hidden = !p.hidden; $("saChip").setAttribute("aria-expanded", String(!p.hidden)); });
+    $("saPlay").addEventListener("click", function () { S.seq([st.saMidi], 1.4); });
+    $("saFind").addEventListener("click", findSa);
+  })();
+  function setSa(m) { st.saMidi = m; st.saSet = true; S.droneSetSa(m); persist(); renderSa(); drawLane(); }
+  function renderSa() { $("saChip").textContent = "Sa = " + S.letter(st.saMidi); $("saSelect").value = String(st.saMidi); }
+
+  /* ---------- Microphone and the live loop ---------- */
+  var mic = { on: false, analyser: null, stream: null, buf: null, blocked: false }, trail = [], smooth = [];
+  function startMic() {
+    var md = navigator.mediaDevices;
+    if (!md || !md.getUserMedia) return Promise.reject(new Error("none"));
+    return md.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false } }).then(function (stream) {
+      var c = S.ac(), src = c.createMediaStreamSource(stream), an = c.createAnalyser();
+      an.fftSize = 2048; src.connect(an);
+      mic.on = true; mic.stream = stream; mic.analyser = an; mic.buf = new Float32Array(an.fftSize);
+      $("micBtn").textContent = "Stop listening"; $("micMsg").textContent = "Listening. Sing \"aa\" and watch your line.";
+      $("micMsg").className = "msg";
+      requestAnimationFrame(loop);
+    });
+  }
+  function stopMic() {
+    mic.on = false; if (mic.stream) mic.stream.getTracks().forEach(function (t) { t.stop(); });
+    $("micBtn").textContent = "Start listening";
+  }
+  function micBlockedMsg() {
+    mic.blocked = true;
+    var el = $("micMsg"); el.className = "msg warn";
+    el.textContent = "The microphone is not available in this view. Record yourself with your phone's voice recorder, then tap Upload a recording. For live feedback, open the standalone copy of Swara Studio.";
+  }
+  $("micBtn").addEventListener("click", function () { S.ac(); if (mic.on) stopMic(); else startMic().catch(micBlockedMsg); });
+  $("droneBtn").addEventListener("click", function () {
+    if (S.droneOn()) S.droneStop(); else S.droneStart(st.saMidi);
+    $("droneBtn").setAttribute("aria-pressed", String(S.droneOn()));
+  });
+
+  var lastT = 0;
+  function loop(ts) {
+    if (!mic.on) return;
+    var dt = lastT ? Math.min(0.1, (ts - lastT) / 1000) : 0; lastT = ts;
+    mic.analyser.getFloatTimeDomainData(mic.buf);
+    var r = S.detect(mic.buf, S.ac().sampleRate), m = null;
+    if (r && r.freq > 60 && r.freq < 1100) {
+      smooth.push(S.ftom(r.freq)); if (smooth.length > 5) smooth.shift();
+      var sorted = smooth.slice().sort(function (a, b) { return a - b; }); m = sorted[sorted.length >> 1];
+    } else smooth = [];
+    var now = ts / 1000;
+    trail.push({ t: now, m: m }); while (trail.length && trail[0].t < now - 8) trail.shift();
+    onPitch(m, dt);
+    drawLane(now);
+    requestAnimationFrame(loop);
+  }
+
+  /* ---------- Readout, modes and matching ---------- */
+  var mode = "free", match = null, tune = { run: 0, best: 0 };
+  function setReadout(m) {
+    if (m == null) { $("rdSwara").innerHTML = "–"; $("rdSub").textContent = "Sing \"aa\""; $("needle").style.left = "50%"; return; }
+    var d = S.describe(S.mtof(m), st.saMidi);
+    $("rdSwara").innerHTML = S.swaraHTML(d.deg, { oct: d.oct }) + '<span class="dev">' + S.swaraHTML(d.deg, { dev: true, oct: d.oct }) + "</span>";
+    $("rdSub").innerHTML = d.freq.toFixed(0) + " Hz · " + d.letter + " · " + d.swara.sol + "<br>" + (d.cents >= 0 ? "+" : "") + d.cents.toFixed(0) + " cents";
+    var c = Math.max(-50, Math.min(50, d.cents));
+    $("needle").style.left = (50 + c) + "%";
+  }
+  var centsTo = S.pcDistance;
+  function onPitch(m, dt) {
+    setReadout(m);
+    if (mode === "tune") {
+      var ok = m != null && Math.abs(centsTo(m, st.saMidi)) <= 25 && Math.abs((m - st.saMidi) * 100) < 600;
+      tune.run = ok ? tune.run + dt : 0;
+      if (tune.run > tune.best) {
+        tune.best = tune.run;
+        var t = today(); if ((st.saHold[t] || 0) < tune.best) { st.saHold[t] = Math.round(tune.best * 10) / 10; if (tune.best >= 3 && !tune.saved) { tune.saved = true; toast("Held Sa for 3 seconds. Gate progress saved."); persist(); } }
+      }
+      $("holdBar").style.width = Math.min(100, tune.run / 3 * 100) + "%";
+      $("tgMsg").textContent = "Longest hold today: " + (st.saHold[today()] || 0).toFixed(1) + " s (goal: 3 s within 25 cents)";
+    }
+    if (mode === "match" && match && match.cur != null && !match.locked) {
+      var target = st.saMidi + match.cur;
+      var inside = m != null && Math.abs(centsTo(m, target)) <= 35;
+      if (inside) { match.hold += dt; match.err.push(Math.abs(centsTo(m, target))); }
+      else match.hold = Math.max(0, match.hold - dt * 0.5);
+      $("holdBar").style.width = Math.min(100, match.hold / 0.8 * 100) + "%";
+      if (m != null && !inside) { var c = centsTo(m, target); $("tgMsg").textContent = Math.abs(c) > 150 ? "Far off: listen again, then slide toward it." : c < 0 ? "A little flat: go up." : "A little sharp: come down."; }
+      if (match.hold >= 0.8) finishTarget(true);
+      else if (performance.now() - match.started > 9000) finishTarget(false);
+    }
+  }
+  function setMode(m) {
+    mode = m;
+    ["Free", "Tune", "Match"].forEach(function (x) { $("mode" + x).setAttribute("aria-pressed", String(m === x.toLowerCase())); });
+    $("targetPanel").hidden = m === "free";
+    $("holdBar").style.width = "0%";
+    if (m === "tune") { $("tgEyebrow").textContent = "Hold this"; $("tgName").innerHTML = S.swaraHTML(0) + " · " + S.letter(st.saMidi); $("tgSkip").hidden = true; tune = { run: 0, best: 0, saved: (st.saHold[today()] || 0) >= 3 }; $("tgMsg").textContent = "Hold Sa within 25 cents for 3 seconds."; if (!S.droneOn()) { S.droneStart(st.saMidi); $("droneBtn").setAttribute("aria-pressed", "true"); } }
+    if (m === "match") { $("tgSkip").hidden = false; startMatch(); }
+    drawLane();
+  }
+  $("modeFree").addEventListener("click", function () { setMode("free"); });
+  $("modeTune").addEventListener("click", function () { setMode("tune"); });
+  $("modeMatch").addEventListener("click", function () { setMode("match"); });
+
+  function startMatch() {
+    match = { q: buildQueue("sing", 6), i: 0, cur: null, hold: 0, hits: 0, err: [], seen: {}, locked: false };
+    nextTarget();
+  }
+  function nextTarget() {
+    if (!match) return;
+    if (match.i >= match.q.length) {
+      $("tgEyebrow").textContent = "Done"; $("tgName").textContent = match.hits + " of " + match.q.length + " hit";
+      $("tgMsg").textContent = "Reviews saved. Tap Reviews to go again."; match.cur = null; renderToday(); return;
+    }
+    match.cur = match.q[match.i]; match.hold = 0; match.err = []; match.locked = false; match.started = performance.now() + 1800;
+    $("tgEyebrow").textContent = "Sing this · " + (match.i + 1) + " of " + match.q.length;
+    $("tgName").innerHTML = swaraLabel(match.cur) + ' <span class="muted" style="font-size:1rem">' + S.letter(st.saMidi + match.cur) + "</span>";
+    $("tgMsg").textContent = mic.on ? "Listen, then sing it on \"aa\"." : "Sing it into your phone's recorder for 3 seconds, then upload. Or start listening for live feedback.";
+    playTarget();
+  }
+  function playTarget() { if (match && match.cur != null) { S.seq([st.saMidi, st.saMidi + match.cur], 0.7, 0.15); match.started = performance.now() + 1800; } }
+  function finishTarget(ok, errOverride) {
+    match.locked = true;
+    var first = !match.seen[match.cur]; match.seen[match.cur] = 1;
+    var err = errOverride != null ? errOverride : (match.err.length ? match.err.reduce(function (a, b) { return a + b; }, 0) / match.err.length : null);
+    if (ok && err != null) { st.singErr.push({ d: today(), e: Math.round(err) }); if (st.singErr.length > 200) st.singErr.shift(); }
+    grade("sing", match.cur, ok, first);
+    if (ok) match.hits++;
+    $("tgMsg").textContent = ok ? "Hit" + (err != null ? ", average " + Math.round(err) + " cents off." : ".") : "Missed this time. The card comes back tomorrow.";
+    match.i++;
+    setTimeout(nextTarget, 1100);
+  }
+  $("tgPlay").addEventListener("click", function () { if (mode === "tune") S.seq([st.saMidi], 1.4); else playTarget(); });
+  $("tgSkip").addEventListener("click", function () { if (match && match.cur != null && !match.locked) finishTarget(false); });
+
+  /* ---------- Uploaded recordings ---------- */
+  $("fileIn").addEventListener("change", function (e) {
+    var f = e.target.files && e.target.files[0]; if (!f) return;
+    $("micMsg").className = "msg"; $("micMsg").textContent = "Reading " + f.name + "…";
+    f.arrayBuffer().then(function (ab) { return S.ac().decodeAudioData(ab); }).then(function (buf) {
+      var frames = S.analyseBuffer(buf), voiced = frames.filter(function (x) { return x.freq; });
+      if (voiced.length < 10) { $("micMsg").textContent = "No clear singing found in that file. Sing a steady \"aa\" close to the phone and try again."; return; }
+      var dur = buf.duration, base = 0;
+      trail = frames.map(function (x) { return { t: base + x.t * (8 / Math.max(dur, 0.1)), m: x.freq ? S.ftom(x.freq) : null }; });
+      drawLane(8);
+      var ms = voiced.map(function (x) { return S.ftom(x.freq); });
+      if (mode === "match" && match && match.cur != null && !match.locked) {
+        var target = st.saMidi + match.cur, inside = ms.filter(function (m) { return Math.abs(centsTo(m, target)) <= 35; });
+        var share = inside.length / ms.length, secs = inside.length * 1024 / buf.sampleRate;
+        var err = inside.length ? inside.reduce(function (a, m) { return a + Math.abs(centsTo(m, target)); }, 0) / inside.length : null;
+        $("micMsg").textContent = Math.round(share * 100) + "% of your sung time was on the target.";
+        finishTarget(share >= 0.5 && secs >= 0.8, err);
+      } else if (mode === "tune") {
+        var run = 0, best = 0, hop = 1024 / buf.sampleRate;
+        frames.forEach(function (x) { var ok = x.freq && Math.abs(centsTo(S.ftom(x.freq), st.saMidi)) <= 25; run = ok ? run + hop : 0; if (run > best) best = run; });
+        var t = today(); if ((st.saHold[t] || 0) < best) st.saHold[t] = Math.round(best * 10) / 10; persist();
+        $("micMsg").textContent = "Longest steady Sa in that recording: " + best.toFixed(1) + " s within 25 cents.";
+      } else {
+        var counts = {}; ms.forEach(function (m) { var d = S.describe(S.mtof(m), st.saMidi); counts[d.deg] = (counts[d.deg] || 0) + 1; });
+        var top = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; }).slice(0, 3);
+        $("micMsg").innerHTML = "Mostly sung: " + top.map(function (k) { return S.swaraHTML(+k) + " " + Math.round(counts[k] / ms.length * 100) + "%"; }).join(", ");
+      }
+    }).catch(function () { $("micMsg").textContent = "That file could not be read. Try an .m4a, .mp3 or .wav recording."; });
+    e.target.value = "";
+  });
+
+  /* ---------- Lane drawing ---------- */
+  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  function drawLane(now) {
+    var cv = $("lane"), w = cv.clientWidth || 700, h = 280, dpr = window.devicePixelRatio || 1;
+    if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    var g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+    var lo = st.saMidi - 7.5, hi = st.saMidi + 12.5, y = function (m) { return h - 10 - (m - lo) / (hi - lo) * (h - 20); };
+    var ink = css("--muted"), line = css("--line"), brass = css("--brass"), acc = css("--accent"), good = css("--good");
+    var unlocked = STAGES[Math.min(st.stage, 8)].degs;
+    g.font = "12px " + css("--mono");
+    for (var r = -7; r <= 12; r++) {
+      var deg = ((r % 12) + 12) % 12, sw = S.SWARAS[deg], yy = y(st.saMidi + r), isFixed = deg === 0 || deg === 7, open = unlocked.indexOf(deg) >= 0;
+      g.strokeStyle = isFixed ? brass : line; g.lineWidth = isFixed ? 1.5 : 1; g.globalAlpha = open ? 1 : 0.35;
+      g.beginPath(); g.moveTo(44, yy); g.lineTo(w - 6, yy); g.stroke();
+      if (open) { g.fillStyle = isFixed ? brass : ink; g.fillText((sw.mark === "komal" ? "k" : sw.mark === "tivra" ? "t" : "") + sw.name + (r < 0 ? "·" : r >= 12 ? "'" : ""), 6, yy + 4); }
+      g.globalAlpha = 1;
+    }
+    var target = mode === "tune" ? st.saMidi : (mode === "match" && match && match.cur != null ? st.saMidi + match.cur : null);
+    if (target != null) { g.fillStyle = good; g.globalAlpha = 0.18; g.fillRect(44, y(target + 0.35), w - 50, y(target - 0.35) - y(target + 0.35)); g.globalAlpha = 1; }
+    if (!trail.length) { g.fillStyle = ink; g.fillText("Your voice draws a line here.", 52, h / 2 - 30); return; }
+    var tEnd = typeof now === "number" ? now : trail[trail.length - 1].t, span = 8;
+    g.strokeStyle = acc; g.lineWidth = 3; g.lineJoin = "round"; g.beginPath();
+    var pen = false, prev = null;
+    trail.forEach(function (p) {
+      if (p.m == null || p.m < lo || p.m > hi) { pen = false; prev = null; return; }
+      if (prev != null && Math.abs(p.m - prev) > 1.5) pen = false;
+      var x = 44 + (1 - (tEnd - p.t) / span) * (w - 50);
+      if (pen) g.lineTo(x, y(p.m)); else { g.moveTo(x, y(p.m)); pen = true; }
+      prev = p.m;
+    });
+    g.stroke();
+  }
+  window.addEventListener("resize", function () { drawLane(); });
+
+  /* ---------- Ear training ---------- */
+  var ear = { mode: "rel", q: [], i: 0, cur: null, answered: false, seen: {}, right: 0, t0: 0 };
+  function setEarMode(m) {
+    ear.mode = m; $("earRel").setAttribute("aria-pressed", String(m === "rel")); $("earAp").setAttribute("aria-pressed", String(m === "ap"));
+    $("earPrompt").textContent = m === "rel" ? "You hear Sa, then a mystery note. Name the mystery note." : "You hear one note with no Sa. Name its letter. Answer fast: speed builds this skill.";
+    $("earNote").textContent = m === "ap" ? "The side quest is optional. In studies, a minority of adult musicians reached perfect-pitch level after several weeks of daily training; most improved modestly. Relative pitch (With Sa) is the main road." : "";
+    resetEar(); renderAnswers();
+  }
+  function resetEar() { ear.q = []; ear.i = 0; ear.cur = null; ear.right = 0; ear.seen = {}; $("earCount").textContent = "Ready"; $("earScore").textContent = ""; $("earFb").textContent = ""; $("earStart").hidden = false; $("earNext").hidden = true; $("earReplay").disabled = true; }
+  $("earRel").addEventListener("click", function () { setEarMode("rel"); });
+  $("earAp").addEventListener("click", function () { setEarMode("ap"); });
+  function renderAnswers() {
+    var deck = ear.mode === "rel" ? "ear" : "ap", items = deckItems(deck).slice().sort(function (a, b) { return a - b; });
+    $("answers").innerHTML = items.map(function (i) {
+      return ear.mode === "rel"
+        ? '<button type="button" data-a="' + i + '"><span class="a1">' + S.swaraHTML(i) + '</span><span class="a2">' + S.SWARAS[i].sol + " · " + S.SWARAS[i].carn + "</span></button>"
+        : '<button type="button" data-a="' + i + '"><span class="a1">' + S.letterPc(i) + '</span><span class="a2">' + S.SWARAS[i].sol + " if Sa = C</span></button>";
+    }).join("");
+    $("answers").querySelectorAll("button").forEach(function (b) { b.addEventListener("click", function () { answer(+b.dataset.a, b); }); });
+  }
+  function playQuestion() {
+    if (ear.cur == null) return;
+    if (ear.mode === "rel") { var end = S.seq([st.saMidi, st.saMidi + ear.cur], 0.8, 0.25); ear.t0 = performance.now() + 2000; }
+    else { ear.oct = ear.oct || (Math.random() < 0.5 ? 48 : 60); S.seq([ear.oct + ear.cur], 1.0); ear.t0 = performance.now() + 300; }
+  }
+  function nextQuestion() {
+    if (ear.i >= ear.q.length) {
+      $("earCount").textContent = "Session done"; $("earFb").className = "feedback good";
+      $("earFb").textContent = ear.right + " of " + ear.q.length + " right. Your cards are rescheduled.";
+      $("earStart").hidden = false; $("earStart").textContent = "Another round"; $("earNext").hidden = true; ear.cur = null; renderAnswers(); renderToday(); return;
+    }
+    ear.cur = ear.q[ear.i].d; ear.retry = ear.q[ear.i].retry; ear.oct = null; ear.answered = false;
+    $("earCount").textContent = "Question " + (ear.i + 1) + " of " + ear.q.length;
+    $("earFb").textContent = ""; $("earNext").hidden = true; $("earReplay").disabled = false;
+    $("answers").querySelectorAll("button").forEach(function (b) { b.className = ""; b.disabled = false; });
+    playQuestion();
+  }
+  function walkHome(deg) {
+    var steps = [deg], scale = [0, 2, 4, 5, 7, 9, 11, 12];
+    if (deg === 0) return [0];
+    if (deg <= 6) { for (var i = scale.length - 1; i >= 0; i--) if (scale[i] < deg) steps.push(scale[i]); }
+    else { for (i = 0; i < scale.length; i++) if (scale[i] > deg) steps.push(scale[i]); }
+    return steps.map(function (s) { return st.saMidi + s; });
+  }
+  function answer(a, btn) {
+    if (ear.cur == null || ear.answered) return;
+    ear.answered = true;
+    var deck = ear.mode === "rel" ? "ear" : "ap", ok = a === ear.cur, ms = Math.max(0, performance.now() - ear.t0);
+    var first = !ear.seen[ear.cur]; ear.seen[ear.cur] = 1;
+    grade(deck, ear.cur, ok, first, ear.retry);
+    if (ok) ear.right++;
+    else if (!ear.retry) ear.q.splice(Math.min(ear.q.length, ear.i + 3), 0, { d: ear.cur, retry: true });
+    btn.className = ok ? "right" : "wrong";
+    $("answers").querySelectorAll("button").forEach(function (b) { if (+b.dataset.a === ear.cur) b.className = "right"; b.disabled = true; });
+    var name = ear.mode === "rel" ? S.SWARAS[ear.cur].full + " (" + S.SWARAS[ear.cur].sol + ")" : S.letterPc(ear.cur);
+    $("earFb").className = "feedback " + (ok ? "good" : "bad");
+    $("earFb").textContent = (ok ? "Yes, " : "It was ") + name + "." + (ok && ms < 30000 ? " " + (ms / 1000).toFixed(1) + " s" : "") + (ok ? "" : " It comes back in a moment.");
+    $("earScore").textContent = ear.right + " right";
+    if (ear.mode === "rel") setTimeout(function () { S.seq(walkHome(ear.cur), 0.32, 0.03); }, 250);
+    ear.i++;
+    $("earNext").hidden = false; $("earNext").focus();
+  }
+  $("earStart").addEventListener("click", function () {
+    S.ac(); var deck = ear.mode === "rel" ? "ear" : "ap";
+    ear.q = buildQueue(deck, ear.mode === "rel" ? 15 : 12).map(function (d) { return { d: d, retry: false }; }); ear.i = 0; ear.right = 0; ear.seen = {};
+    $("earStart").hidden = true; renderAnswers(); nextQuestion();
+  });
+  $("earReplay").addEventListener("click", playQuestion);
+  $("earNext").addEventListener("click", nextQuestion);
+
+  /* ---------- Today ---------- */
+  function mastered() { return SRS.mastered(st); }
+  function renderToday() {
+    var d = new Date();
+    $("todayDate").textContent = d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+    var dueE = dueItems("ear").length, dueS = dueItems("sing").length, dueA = dueItems("ap").length, day = st.days[today()] || { ear: [0, 0], sing: [0, 0], ap: [0, 0] };
+    var isSunday = d.getDay() === 0;
+    $("todayTitle").textContent = isSunday ? "Weekly review day" : "Your 12 minutes";
+    $("stStreak").textContent = streak(); $("stDue").textContent = dueE + dueS + dueA; $("stMastered").textContent = mastered();
+    $("stepEarD").textContent = dueE ? dueE + " card" + (dueE > 1 ? "s" : "") + " due, mixed with your weakest." : "Nothing due. A short mixed round keeps it fresh.";
+    $("stepSingD").textContent = (dueS ? dueS + " card" + (dueS > 1 ? "s" : "") + " due." : "Nothing due. Sing a short mixed round.") + (isSunday ? " Today: also record yourself singing Sa up to taar Sa and back." : "");
+    $("stepTune").className = (st.saHold[today()] || 0) >= 3 ? "done" : "";
+    $("stepEar").className = day.ear[0] >= 10 ? "done" : "";
+    $("stepSing").className = day.sing[0] >= 5 ? "done" : "";
+    $("stepAp").className = day.ap[0] >= 8 ? "done" : "";
+    var stg = STAGES[Math.min(st.stage, 8)], cur = CUR[stg.cur - 1];
+    $("stageName").textContent = "Stage " + cur.n + " · " + cur.name;
+    $("stageStep").textContent = "Step " + (st.stage + 1) + " of " + STAGES.length;
+    $("stageNotes").innerHTML = stg.degs.map(function (i) { var c = card("ear", i); return '<span class="chip' + (S.SWARAS[i].fixed ? " fixed" : c.box >= 2 ? " on" : "") + '">' + S.swaraHTML(i) + ' <span class="num muted">box ' + c.box + "</span></span>"; }).join("");
+    var a = acc("ear"), n = st.recent.ear.length;
+    $("stageBar").style.width = Math.round(a * 100) + "%";
+    $("stageAcc").textContent = n ? "Last " + n + " answers: " + Math.round(a * 100) + "% (goal 85% over 20)" : "Last 20 answers: none yet";
+    var di = Math.floor((Date.now() / 86400000)) % HACKS.length;
+    $("hackOfDay").innerHTML = '<span class="eyebrow">Memory hack</span><p>' + HACKS[di] + "</p>";
+  }
+  document.querySelectorAll("[data-go]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      S.ac(); var g = b.dataset.go;
+      if (g === "tune") { show("sing"); setMode("tune"); }
+      if (g === "sing") { show("sing"); setMode("match"); }
+      if (g === "ear") { show("ear"); setEarMode("rel"); $("earStart").click(); }
+      if (g === "ap") { show("ear"); setEarMode("ap"); $("earStart").click(); }
+    });
+  });
+
+  /* ---------- Progress ---------- */
+  function renderDeck(el, deck, all) {
+    var unlocked = deckItems(deck);
+    el.innerHTML = all.map(function (i) {
+      var open = unlocked.indexOf(i) >= 0, c = st.cards[key(deck, i)] || { box: 0, due: "" };
+      var dd = open ? daysBetween(today(), c.due) : null, due = !open ? "locked" : dd <= 0 ? "due now" : "in " + dd + " day" + (dd > 1 ? "s" : "");
+      var pips = ""; for (var b = 1; b <= 5; b++) pips += "<i" + (c.box >= b ? ' class="on"' : "") + "></i>";
+      var label = deck === "ap" ? S.letterPc(i) : S.swaraHTML(i);
+      return '<div class="kcard' + (open ? "" : " locked") + '"><span class="n">' + label + '</span><div class="pips">' + pips + '</div><span class="due">' + due + "</span></div>";
+    }).join("");
+  }
+  function renderChart() {
+    var svg = $("chart"), W = 360, H = 170, padL = 26, padB = 26, top = 10, days = [], max = 0, i;
+    for (i = 13; i >= 0; i--) { var k = today(-i), x = st.days[k], tot = x ? x.ear[0] + x.sing[0] + x.ap[0] : 0, ok = x ? x.ear[1] + x.sing[1] + x.ap[1] : 0; days.push({ k: k, tot: tot, ok: ok }); if (tot > max) max = tot; }
+    var yMax = Math.max(10, Math.ceil(max / 10) * 10), bw = (W - padL - 10) / 14, out = "";
+    var yv = function (v) { return H - padB - v / yMax * (H - padB - top); };
+    [0, yMax / 2, yMax].forEach(function (v) { out += '<line x1="' + padL + '" x2="' + (W - 6) + '" y1="' + yv(v) + '" y2="' + yv(v) + '" stroke="var(--line)" stroke-width="1"/><text x="' + (padL - 6) + '" y="' + (yv(v) + 3) + '" text-anchor="end">' + v + "</text>"; });
+    days.forEach(function (d, j) {
+      var x = padL + j * bw + bw * 0.15, w = bw * 0.7;
+      if (d.tot) { out += '<rect x="' + x + '" y="' + yv(d.tot) + '" width="' + w + '" height="' + (yv(0) - yv(d.tot)) + '" rx="3" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1"/>'; out += '<rect x="' + x + '" y="' + yv(d.ok) + '" width="' + w + '" height="' + (yv(0) - yv(d.ok)) + '" rx="3" fill="var(--accent)"/>'; }
+      if (j % 2 === 1 || j === 13) out += '<text x="' + (x + w / 2) + '" y="' + (H - 8) + '" text-anchor="middle">' + (j === 13 ? "today" : d.k.slice(8)) + "</text>";
+    });
+    svg.innerHTML = out;
+    var week = days.slice(7), wt = week.reduce(function (a, d) { return a + d.tot; }, 0), wo = week.reduce(function (a, d) { return a + d.ok; }, 0), active = week.filter(function (d) { return d.tot; }).length;
+    $("chartNote").textContent = "Dark = right answers, light = all answers. This week: " + active + " of 7 days, " + wt + " answers, " + (wt ? Math.round(wo / wt * 100) : 0) + "% right.";
+  }
+  function gateList() {
+    var shuddha = [0, 2, 4, 5, 7, 9, 11], holdDays = SRS.holdDays(st);
+    var allBox = function (deck, items, b) { return items.every(function (i) { var c = st.cards[key(deck, i)]; return c && c.box >= b; }); };
+    return [
+      { s: 1, auto: true, t: "Hold Sa within 25 cents for 3 seconds on 3 different days (" + Math.min(holdDays, 3) + " of 3)", ok: holdDays >= 3 },
+      { s: 1, auto: true, t: "Sa, Pa and Ga ear cards at box 2+, 85% over your last 20", ok: st.stage >= 2 },
+      { s: 1, id: "s1-hum", t: "Hum Sa without the drone, then check it: within a semitone" },
+      { s: 2, auto: true, t: "All 7 shuddha swaras: ear cards at box 3+", ok: st.stage >= 5 && allBox("ear", shuddha, 3) },
+      { s: 2, auto: true, t: "Sing all 7 within 35 cents, 80% over your last 20 sings", ok: st.stage >= 5 && st.recent.sing.length >= 20 && acc("sing") >= 0.8 },
+      { s: 2, id: "s2-sarali", t: "Sing Sarali Varisai 1 and 2 with the drone, one note per beat" },
+      { s: 3, auto: true, t: "All 12 ear cards at box 2+", ok: st.stage >= 8 && allBox("ear", STAGES[8].degs, 2) },
+      { s: 3, id: "s3-letters", t: "Say the Western letter of every swara for your Sa, from memory" },
+      { s: 4, id: "s4-sarali", t: "Sing Sarali Varisai 1 to 4 from notation at speeds 1 and 2, keeping Adi tala on your hand" },
+      { s: 4, id: "s4-sight", t: "Sight-sing a new 4-bar melody on the first try" },
+      { s: 5, id: "s5-record", t: "Record an Alankaram and a short song: 80% of sung time within 35 cents" },
+      { s: 5, id: "s5-share", t: "Sing for a teacher or a community and get feedback" }
+    ];
+  }
+  function renderGates() {
+    var g = gateList(), html = "";
+    CUR.forEach(function (c) {
+      html += '<div class="stack" style="gap:6px"><span class="eyebrow">Stage ' + c.n + " · " + c.name + '</span><ul class="gates">';
+      g.filter(function (x) { return x.s === c.n; }).forEach(function (x) {
+        var ok = x.auto ? x.ok : !!st.gates[x.id];
+        html += '<li class="' + (ok ? "ok" : "") + '">' + (x.auto ? '<span class="box">' + (ok ? "✓" : "") + "</span>" : '<button type="button" class="box" data-gate="' + x.id + '" aria-pressed="' + ok + '" aria-label="Mark done">' + (ok ? "✓" : "") + "</button>") + "<span>" + x.t + '<span class="who">' + (x.auto ? "auto" : "you") + "</span></span></li>";
+      });
+      html += "</ul></div>";
+    });
+    $("gates").innerHTML = html;
+    $("gates").querySelectorAll("[data-gate]").forEach(function (b) { b.addEventListener("click", function () { st.gates[b.dataset.gate] = !st.gates[b.dataset.gate]; persist(); renderGates(); }); });
+  }
+  function renderProgress() {
+    renderChart();
+    renderDeck($("cardsEar"), "ear", STAGES[8].degs);
+    renderDeck($("cardsSing"), "sing", STAGES[8].degs);
+    renderDeck($("cardsAp"), "ap", AP_STAGES[6]);
+    var recent = st.singErr.filter(function (x) { return daysBetween(x.d, today()) < 7; });
+    $("singAcc").textContent = recent.length ? "This week your hits averaged " + Math.round(recent.reduce(function (a, x) { return a + x.e; }, 0) / recent.length) + " cents from the target (lower is better)." : "Sing reviews will show your average distance from the target in cents.";
+    renderGates();
+  }
+  $("copyAsk").addEventListener("click", function () {
+    var t = $("askText").textContent;
+    try { navigator.clipboard.writeText(t).then(function () { toast("Copied"); }, sel); } catch (e) { sel(); }
+    function sel() { var r = document.createRange(); r.selectNodeContents($("askText")); var s = getSelection(); s.removeAllRanges(); s.addRange(r); toast("Selected: copy it from here"); }
+  });
+
+  /* ---------- Learn ---------- */
+  function renderLearn() {
+    var curN = STAGES[Math.min(st.stage, 8)].cur;
+    $("stageList").innerHTML = CUR.map(function (c) { return '<li class="' + (c.n === curN ? "now" : "") + '"><span class="eyebrow">Stage ' + c.n + " · " + c.weeks + (c.n === curN ? " · you are here" : c.n < curN ? " · done" : "") + "</span><b>" + c.name + '</b><span class="muted">' + c.goal + "</span></li>"; }).join("");
+  }
+
+  /* ---------- Backup, restore, install, wake lock ---------- */
+  function copyText(t, el) {
+    var fallback = function () { $("restoreBox").hidden = false; $("restoreText").value = t; $("restoreText").select(); toast("Selected: copy it from the box"); };
+    try { navigator.clipboard.writeText(t).then(function () { toast("Copied"); }, fallback); } catch (e) { fallback(); }
+  }
+  $("copyBackup").addEventListener("click", function () { copyText(SRS.backupText(st, today())); });
+  $("showRestore").addEventListener("click", function () { $("restoreBox").hidden = !$("restoreBox").hidden; });
+  $("doRestore").addEventListener("click", function () {
+    try {
+      st = SRS.mergeStates(st, SRS.parseBackup($("restoreText").value)); ensureCards(); persist(); renderAll(); renderProgress();
+      $("restoreMsg").textContent = "Backup merged: each card keeps its most recent review.";
+    } catch (e) { $("restoreMsg").textContent = "That does not look like a Swara Studio backup. Copy the whole text, starting with \"Swara Studio progress backup\"."; }
+  });
+  var installEvt = null;
+  window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); installEvt = e; $("installCard").hidden = false; });
+  $("installBtn").addEventListener("click", function () {
+    if (!installEvt) return; installEvt.prompt();
+    installEvt.userChoice.then(function () { installEvt = null; $("installCard").hidden = true; });
+  });
+  var wake = null;
+  function keepAwake(on) {
+    try {
+      if (on && navigator.wakeLock && !wake) navigator.wakeLock.request("screen").then(function (w) { wake = w; w.addEventListener("release", function () { wake = null; }); }, function () {});
+      if (!on && wake) { wake.release(); wake = null; }
+    } catch (e) {}
+  }
+  $("micBtn").addEventListener("click", function () { setTimeout(function () { keepAwake(mic.on); }, 600); });
+  if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) $("liveCard").hidden = true;
+
+  /* ---------- Boot ---------- */
+  function renderAll() { renderSa(); renderToday(); renderAnswers(); drawLane(); }
+  ensureCards(); renderAll(); setEarMode("rel");
+  if (!st.saSet) { $("saPanel").hidden = false; $("saChip").setAttribute("aria-expanded", "true"); $("saMsg").textContent = "Start here: choose a Sa, or let the app find one from your voice. Lesson 1 explains how."; }
+  connectRemote();
+
+  function findSa() {
+    S.ac();
+    var startFind = function () {
+      $("saMsg").textContent = "Sing a relaxed, low-ish \"aa\" and hold it for 3 seconds…";
+      var got = [], t0 = performance.now();
+      (function grab() {
+        if (!mic.on) return;
+        mic.analyser.getFloatTimeDomainData(mic.buf);
+        var r = S.detect(mic.buf, S.ac().sampleRate); if (r && r.freq > 60 && r.freq < 700) got.push(S.ftom(r.freq));
+        if (performance.now() - t0 < 3500) return requestAnimationFrame(grab);
+        if (got.length < 30) { $("saMsg").textContent = "I could not hear a steady note. Try again a little louder, closer to the phone."; return; }
+        got.sort(function (a, b) { return a - b; }); var med = Math.round(got[got.length >> 1]);
+        setSa(Math.max(40, Math.min(67, med))); $("saMsg").textContent = "Your Sa is " + S.letter(st.saMidi) + ". Tap Play Sa to hear it.";
+      })();
+    };
+    if (mic.on) startFind();
+    else startMic().then(startFind).catch(function () { $("saMsg").textContent = "The microphone is not available here. Choose Sa from the list: tap Play Sa and pick the one you can hum comfortably and quietly. Lesson 1 walks you through it."; micBlockedMsg(); });
+  }
+})();
+</script>
