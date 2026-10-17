@@ -13,7 +13,12 @@ const HARNESS = `
   window.__played = [];
   const _seq = Swara.seq;
   window.__timbres = [];
-  Swara.seq = function (notes, dur, gap, timbre) { window.__played.push(notes.slice()); window.__timbres.push(timbre || "harmonium"); return _seq.apply(this, arguments); };
+  window.__questions = [];
+  Swara.seq = function (notes, dur, gap, timbre) {
+    window.__played.push(notes.slice()); window.__timbres.push(timbre || "harmonium");
+    if (gap === 0.25) window.__questions.push(notes.slice()); // ear questions: Sa, then the mystery note
+    return _seq.apply(this, arguments);
+  };
   navigator.mediaDevices.getUserMedia = async function (constraints) {
     window.__constraints = constraints;
     const c = Swara.ac(), dest = c.createMediaStreamDestination(), g = c.createGain();
@@ -226,9 +231,10 @@ const state = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("swa
       await fresh();
       await page.click('[data-tab-btn="ear"]'); await page.click("#earStart");
       for (let i = 0; i < 15; i++) {
-        const notes = await page.evaluate(() => window.__played[window.__played.length - 1]);
+        const notes = await page.evaluate(() => window.__questions[window.__questions.length - 1]);
         await page.click(`#answers button[data-a="${notes[1] - notes[0]}"]`);
         await page.click("#earNext");
+        await page.waitForFunction((k) => window.__questions.length > k || /done/i.test(document.getElementById("earCount").textContent), i + 1);
       }
       const used = await page.evaluate(() => [...new Set(window.__timbres)]);
       assert.ok(used.length >= 3, "only " + used.join(", "));
@@ -238,10 +244,11 @@ const state = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("swa
       await fresh();
       await page.click('[data-tab-btn="ear"]'); await page.click("#earStart");
       for (let i = 0; i < 15; i++) {
-        const notes = await page.evaluate(() => window.__played[window.__played.length - 1]);
+        const notes = await page.evaluate(() => window.__questions[window.__questions.length - 1]);
         const deg = notes[1] - notes[0];
         await page.click(`#answers button[data-a="${deg}"]`);
         await page.click("#earNext");
+        await page.waitForFunction((k) => window.__questions.length > k || /done/i.test(document.getElementById("earCount").textContent), i + 1);
       }
       assert.match(await page.textContent("#earFb"), /15 of 15 right/);
       const st = await state(page);
@@ -258,7 +265,7 @@ const state = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("swa
       });
       await page.reload(); await page.evaluate(HARNESS);
       await page.click('[data-tab-btn="ear"]'); await page.click("#earStart");
-      const notes = await page.evaluate(() => window.__played[window.__played.length - 1]);
+      const notes = await page.evaluate(() => window.__questions[window.__questions.length - 1]);
       await page.click(`#answers button[data-a="${notes[1] - notes[0]}"]`);
       await page.waitForFunction(() => /Unlocked: Ga/.test(document.getElementById("toast").textContent), null, { timeout: 3000 });
       assert.equal((await state(page)).stage, 1);
