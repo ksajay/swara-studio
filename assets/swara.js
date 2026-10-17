@@ -128,6 +128,34 @@
     return out;
   }
 
+  /* ---------- Listening ----------
+     Raw microphone audio: echo cancelling, noise suppression and auto gain are built for speech
+     calls and can treat a held note as background noise, fading it out. */
+  var MIC_CONSTRAINTS = { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } };
+
+  // Turns frame-by-frame detections into a steady readout: a 5-frame median ignores one-frame
+  // glitches, and a short hold rides over dropouts without hiding real silence.
+  function createTracker(opts) {
+    opts = opts || {};
+    var size = opts.size || 5, hangMs = opts.hangMs || 200, buf = [], lastT = -1e9, lastM = null;
+    return {
+      push: function (freq, tMs) {
+        if (freq && freq > 60 && freq < 1100) {
+          buf.push(ftom(freq)); if (buf.length > size) buf.shift();
+          var sorted = buf.slice().sort(function (a, b) { return a - b; });
+          lastM = sorted[sorted.length >> 1]; lastT = tMs;
+          return lastM;
+        }
+        if (lastM != null && tMs - lastT <= hangMs) return lastM;
+        buf = []; lastM = null;
+        return null;
+      },
+      reset: function () { buf = []; lastM = null; lastT = -1e9; }
+    };
+  }
+  // Input level from 0 (silence) to 1 (very loud), on a 60 dB scale.
+  function level(rms) { if (!(rms > 0)) return 0; return Math.max(0, Math.min(1, (20 * Math.log10(rms) + 60) / 60)); }
+
   /* ---------- Pitch detection: YIN (de Cheveigné & Kawahara, 2002) ---------- */
   function detect(buf, sr) {
     var n = buf.length, i, t, rms = 0;
@@ -260,7 +288,7 @@
 
   g.Swara = {
     SWARAS: SWARAS, LETTERS: LETTERS, mtof: mtof, ftom: ftom, letter: letter, letterPc: letterPc,
-    describe: describe, pcDistance: pcDistance, scale: scale, TIMBRES: TIMBRES, pianoPartials: pianoPartials, pluckSamples: pluckSamples, swaraHTML: swaraHTML, octaveName: octaveName,
+    describe: describe, pcDistance: pcDistance, MIC_CONSTRAINTS: MIC_CONSTRAINTS, createTracker: createTracker, level: level, scale: scale, TIMBRES: TIMBRES, pianoPartials: pianoPartials, pluckSamples: pluckSamples, swaraHTML: swaraHTML, octaveName: octaveName,
     detect: detect, analyseBuffer: analyseBuffer,
     ac: ac, tone: tone, seq: seq,
     droneStart: droneStart, droneStop: droneStop, droneOn: droneOn, droneSetSa: droneSetSa, droneSetFirst: droneSetFirst, droneConfig: droneConfig,

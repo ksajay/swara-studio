@@ -187,3 +187,51 @@ test("it sustains long enough for plucks to overlap into one continuous sound", 
   assert.ok(peak > 0.5 && peak <= 1.0001, "normalised");
   assert.ok(rmsAt(buf, TSR, 3.0) > 0.1 * rmsAt(buf, TSR, 0.4), "still ringing at 3 s");
 });
+
+/* ---------- Listening: microphone settings and pitch tracking ---------- */
+test("the microphone asks for raw audio: no echo cancelling, noise suppression or auto gain", () => {
+  assert.deepEqual(S.MIC_CONSTRAINTS, { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+});
+
+test("a steady note reads the same on every frame", () => {
+  const tr = S.createTracker();
+  const out = [];
+  for (let i = 0; i < 60; i++) out.push(tr.push(S.mtof(52), i * 16));
+  assert.ok(out.slice(2).every((m) => m != null && Math.abs(m - 52) < 0.01));
+});
+
+test("brief dropouts in a steady note do not blank the readout", () => {
+  const tr = S.createTracker();
+  for (let i = 0; i < 20; i++) tr.push(S.mtof(52), i * 16);
+  for (let i = 20; i < 28; i++) assert.ok(tr.push(null, i * 16) != null, "blanked after " + (i - 19) * 16 + " ms");
+});
+
+test("real silence clears the readout within a quarter of a second", () => {
+  const tr = S.createTracker();
+  for (let i = 0; i < 20; i++) tr.push(S.mtof(52), i * 16);
+  let last;
+  for (let i = 20; i < 40; i++) last = tr.push(null, i * 16);
+  assert.equal(last, null);
+});
+
+test("a one-frame octave glitch is ignored", () => {
+  const tr = S.createTracker();
+  for (let i = 0; i < 10; i++) tr.push(S.mtof(52), i * 16);
+  const m = tr.push(S.mtof(64), 160);
+  assert.ok(Math.abs(m - 52) < 0.01, "jumped to " + m);
+});
+
+test("a new note shows within a few frames after silence", () => {
+  const tr = S.createTracker();
+  for (let i = 0; i < 30; i++) tr.push(null, i * 16);
+  let m = null, n = 0;
+  while (m == null && n < 5) { m = tr.push(S.mtof(55), (30 + n) * 16); n++; }
+  assert.ok(m != null && n <= 2, "took " + n + " frames");
+});
+
+test("sliding pitch is followed, not frozen", () => {
+  const tr = S.createTracker();
+  let m;
+  for (let i = 0; i < 60; i++) m = tr.push(S.mtof(48 + i / 10), i * 16);
+  assert.ok(m > 53, "stuck at " + m);
+});

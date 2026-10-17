@@ -91,6 +91,8 @@
   .scale-strip .sl { font-family: var(--mono); font-size: 0.72rem; color: var(--ink); }
   .scale-strip .ss { font-size: 0.7rem; color: var(--muted); }
   .scale-strip .fixed-note { background: var(--brass-soft); border-color: var(--brass); }
+  .level { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
+  .level .bar > i { background: var(--good); transition: width 60ms linear; }
   .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 12px; z-index: 20; font-weight: 600; max-width: calc(100% - 32px); }
 </style>
 
@@ -165,6 +167,7 @@
       </div>
       <div class="meter" aria-hidden="true"><span class="mid"></span><span class="needle" id="needle"></span></div>
       <div class="meter-labels"><span>−50 flat</span><span>in tune</span><span>sharp +50</span></div>
+      <div class="level" title="Microphone level"><span class="eyebrow">Mic</span><div class="bar"><i id="micLevel" style="width:0%"></i></div></div>
       <canvas class="lane" id="lane" width="700" height="280" aria-label="Your pitch over the last few seconds, against swara lines"></canvas>
       <div class="panel" id="targetPanel" hidden>
         <div class="target"><div><span class="eyebrow" id="tgEyebrow">Sing this</span><div class="name" id="tgName">Sa</div></div>
@@ -388,14 +391,14 @@
   }
 
   /* ---------- Microphone and the live loop ---------- */
-  var mic = { on: false, analyser: null, stream: null, buf: null, blocked: false }, trail = [], smooth = [];
+  var mic = { on: false, analyser: null, stream: null, src: null, buf: null, blocked: false }, trail = [], tracker = S.createTracker();
   function startMic() {
     var md = navigator.mediaDevices;
     if (!md || !md.getUserMedia) return Promise.reject(new Error("none"));
-    return md.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false } }).then(function (stream) {
+    return md.getUserMedia(S.MIC_CONSTRAINTS).then(function (stream) {
       var c = S.ac(), src = c.createMediaStreamSource(stream), an = c.createAnalyser();
-      an.fftSize = 2048; src.connect(an);
-      mic.on = true; mic.stream = stream; mic.analyser = an; mic.buf = new Float32Array(an.fftSize);
+      an.fftSize = 2048; src.connect(an); tracker.reset();
+      mic.on = true; mic.stream = stream; mic.src = src; mic.analyser = an; mic.buf = new Float32Array(an.fftSize);
       $("micBtn").textContent = "Stop listening"; $("micMsg").textContent = "Listening. Sing \"aa\" and watch your line.";
       $("micMsg").className = "msg";
       requestAnimationFrame(loop);
@@ -403,6 +406,9 @@
   }
   function stopMic() {
     mic.on = false; if (mic.stream) mic.stream.getTracks().forEach(function (t) { t.stop(); });
+    try { if (mic.src) mic.src.disconnect(); } catch (e) {}
+    mic.stream = null; mic.src = null; tracker.reset();
+    $("micLevel").style.width = "0%"; setReadout(null);
     $("micBtn").textContent = "Start listening";
   }
   function micBlockedMsg() {
@@ -421,11 +427,10 @@
     if (!mic.on) return;
     var dt = lastT ? Math.min(0.1, (ts - lastT) / 1000) : 0; lastT = ts;
     mic.analyser.getFloatTimeDomainData(mic.buf);
-    var r = S.detect(mic.buf, S.ac().sampleRate), m = null;
-    if (r && r.freq > 60 && r.freq < 1100) {
-      smooth.push(S.ftom(r.freq)); if (smooth.length > 5) smooth.shift();
-      var sorted = smooth.slice().sort(function (a, b) { return a - b; }); m = sorted[sorted.length >> 1];
-    } else smooth = [];
+    var r = S.detect(mic.buf, S.ac().sampleRate), m = tracker.push(r ? r.freq : null, ts);
+    var sum = 0; for (var i = 0; i < mic.buf.length; i++) sum += mic.buf[i] * mic.buf[i];
+    var rms = Math.sqrt(sum / mic.buf.length); mic.rms = rms;
+    $("micLevel").style.width = Math.round(S.level(rms) * 100) + "%";
     var now = ts / 1000;
     trail.push({ t: now, m: m }); while (trail.length && trail[0].t < now - 8) trail.shift();
     onPitch(m, dt);
@@ -436,7 +441,7 @@
   /* ---------- Readout, modes and matching ---------- */
   var mode = "free", match = null, tune = { run: 0, best: 0 };
   function setReadout(m) {
-    if (m == null) { $("rdSwara").innerHTML = "–"; $("rdSub").textContent = "Sing \"aa\""; $("needle").style.left = "50%"; return; }
+    if (m == null) { $("rdSwara").innerHTML = "–"; $("rdSub").textContent = mic.on && mic.rms > 0.02 ? "Hearing sound, but no clear note" : "Sing \"aa\""; $("needle").style.left = "50%"; return; }
     var d = S.describe(S.mtof(m), st.saMidi);
     $("rdSwara").innerHTML = S.swaraHTML(d.deg, { oct: d.oct }) + '<span class="dev">' + S.swaraHTML(d.deg, { dev: true, oct: d.oct }) + "</span>";
     $("rdSub").innerHTML = d.freq.toFixed(0) + " Hz · " + d.letter + " · " + d.swara.sol + "<br>" + (d.cents >= 0 ? "+" : "") + d.cents.toFixed(0) + " cents";
@@ -788,6 +793,18 @@
   }
   $("micBtn").addEventListener("click", function () { setTimeout(function () { keepAwake(mic.on); }, 600); });
   if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) $("liveCard").hidden = true;
+
+  // Never listen or play while the app is out of sight: stop the mic and the drone, and let the
+  // learner restart listening themselves when they come back.
+  function pauseForBackground() {
+    var wasListening = mic.on;
+    if (mic.on) stopMic();
+    if (S.droneOn()) { S.droneStop(); $("droneBtn").setAttribute("aria-pressed", "false"); }
+    keepAwake(false);
+    if (wasListening) { $("micMsg").className = "msg"; $("micMsg").textContent = "Paused while you were away. Tap Start listening to carry on."; }
+  }
+  document.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") pauseForBackground(); });
+  window.addEventListener("pagehide", pauseForBackground);
 
   /* ---------- Boot ---------- */
   function renderAll() { renderSa(); renderToday(); renderAnswers(); drawLane(); }

@@ -32,6 +32,15 @@ The foundations are right: relative pitch first (which is how Indian music alrea
 - **Added:** first string selectable as low Ma (ragas without Pa) or low Ni (Marva, Puriya), saved with progress.
 - **Still synthetic.** A real recorded tanpura is the gold standard. If you have a recording you are free to use, it can replace the model, with the same pitch tests applied.
 
+## Listening bug (17 October, reported by Ajay)
+
+- **Symptom:** the readout vanished while holding a steady note and only showed while the pitch moved.
+- **Likely cause:** the mic was opened with echo cancellation on. Voice-call processing can treat a sustained tone as background noise and fade it out; moving pitch escapes it. Now opened with echo cancellation, noise suppression and auto gain all off. Headless tests cannot reproduce a browser's audio processing, so the constraint itself is locked by a test, and the new level meter lets you confirm on your phone.
+- **Code weakness that made it worse:** one silent frame (about 16 ms) blanked the readout. A tracker now holds the last note through dropouts up to 0.2 s, ignores one-frame octave glitches, and still clears quickly in real silence (7 unit tests, 1 end-to-end test that inserts ten 60 ms dropouts into a steady note: zero blank frames).
+- **Diagnostics:** a live mic-level meter, and "Hearing sound, but no clear note" when there is sound without a pitch.
+- **Privacy:** going to the background stops listening, releases the microphone and silences the drone; it never restarts by itself.
+- **Side effect:** with echo cancellation off, the drone leaks into the mic more without earphones, so gap 1 below matters more.
+
 ## Open gaps, ranked
 
 1. **Drone bleed can fake progress (high).** Without earphones, the microphone can hear the drone's Sa and score "Hold Sa" as a hit. Next fix: a "No earphones" mode that plays the reference, then stops the drone while you sing; and a test with drone audio fed into the mic.

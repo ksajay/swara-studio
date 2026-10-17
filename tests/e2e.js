@@ -14,7 +14,8 @@ const HARNESS = `
   const _seq = Swara.seq;
   window.__timbres = [];
   Swara.seq = function (notes, dur, gap, timbre) { window.__played.push(notes.slice()); window.__timbres.push(timbre || "harmonium"); return _seq.apply(this, arguments); };
-  navigator.mediaDevices.getUserMedia = async function () {
+  navigator.mediaDevices.getUserMedia = async function (constraints) {
+    window.__constraints = constraints;
     const c = Swara.ac(), dest = c.createMediaStreamDestination(), g = c.createGain();
     g.gain.value = 0.3; g.connect(dest);
     window.__oscs = [0.5, 0.25, 0.15, 0.08].map((a, i) => {
@@ -22,6 +23,8 @@ const HARNESS = `
       o.connect(gg); gg.connect(g); o.start(); return o;
     });
     window.__sing = (hz) => window.__oscs.forEach((o, i) => (o.frequency.value = hz * (i + 1)));
+    window.__gate = g;
+    window.__stream = dest.stream;
     return dest.stream;
   };`;
 
@@ -56,6 +59,56 @@ const state = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("swa
       await page.click('[data-tab-btn="sing"]'); await page.click("#micBtn");
       await page.waitForFunction(() => document.getElementById("rdSwara").textContent.startsWith("Ga"), null, { timeout: 4000 });
       assert.match(await page.textContent("#rdSub"), /E3/);
+    });
+
+    await step("the microphone is opened with all voice processing off", async () => {
+      assert.deepEqual(await page.evaluate(() => window.__constraints), { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    });
+
+    await step("a steady note with tiny dropouts stays on screen the whole time", async () => {
+      await page.evaluate((hz) => window.__sing(hz), mtof(SA + 4));
+      await page.waitForFunction(() => document.getElementById("rdSwara").textContent.startsWith("Ga"));
+      const blanks = await page.evaluate(() => new Promise((done) => {
+        const g = window.__gate.gain, c = Swara.ac(); let blanks = 0, frames = 0;
+        for (let k = 0; k < 10; k++) { const t = c.currentTime + 0.2 + k * 0.4; g.setValueAtTime(0, t); g.setValueAtTime(0.3, t + 0.06); }
+        (function watch() {
+          frames++; if (!document.getElementById("rdSwara").textContent.startsWith("Ga")) blanks++;
+          if (frames < 260) requestAnimationFrame(watch); else done(blanks);
+        })();
+      }));
+      assert.equal(blanks, 0, blanks + " frames blanked during a steady note");
+    });
+
+    await step("the input level meter moves when you sing and rests in silence", async () => {
+      const singing = await page.evaluate(() => parseFloat(document.getElementById("micLevel").style.width) || 0);
+      assert.ok(singing > 5, "level " + singing + "% while singing");
+      await page.evaluate(() => { window.__gate.gain.value = 0; });
+      await page.waitForTimeout(600);
+      const quiet = await page.evaluate(() => parseFloat(document.getElementById("micLevel").style.width) || 0);
+      assert.ok(quiet < 2, "level " + quiet + "% in silence");
+      assert.match(await page.textContent("#rdSub"), /Sing/);
+      await page.evaluate(() => { window.__gate.gain.value = 0.3; });
+    });
+
+    await step("putting the app in the background stops listening, releases the mic and quiets the drone", async () => {
+      await page.click("#droneBtn");
+      assert.equal(await page.evaluate(() => Swara.droneOn()), true);
+      await page.evaluate(() => {
+        Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      assert.equal(await page.textContent("#micBtn"), "Start listening");
+      assert.ok(await page.evaluate(() => window.__stream.getTracks().every((t) => t.readyState === "ended")), "mic track still live");
+      assert.equal(await page.evaluate(() => Swara.droneOn()), false);
+      await page.evaluate(() => {
+        Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      await page.waitForTimeout(300);
+      assert.equal(await page.textContent("#micBtn"), "Start listening", "does not restart the mic by itself");
+      assert.match(await page.textContent("#micMsg"), /Paused/);
+      await page.click("#micBtn");
+      await page.waitForFunction(() => document.getElementById("micBtn").textContent === "Stop listening");
     });
 
     await step("holding Sa for 3 seconds is recorded for the stage gate", async () => {
