@@ -2,7 +2,7 @@
 const VERSION = "swara-__BUILD__";
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
-  "./assets/studio.css", "./assets/swara.js", "./assets/srs.js", "./assets/quiz.js",
+  "./assets/studio.css", "./assets/swara.js", "./assets/srs.js", "./assets/sing.js", "./assets/quiz.js",
   "./lessons/0001-find-your-sa.html", "./reference/note-map.html", "./reference/memory-hacks.html",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/maskable-192.png", "./icons/maskable-512.png"
 ];

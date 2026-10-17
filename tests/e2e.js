@@ -24,6 +24,11 @@ const HARNESS = `
     });
     window.__sing = (hz) => window.__oscs.forEach((o, i) => (o.frequency.value = hz * (i + 1)));
     window.__gate = g;
+    window.__singPhrase = (parts) => new Promise((res) => {
+      let t = 0;
+      parts.forEach(([hz, secs]) => { setTimeout(() => { g.gain.value = 0.3; window.__sing(hz); }, t * 1000); t += secs; });
+      setTimeout(() => { g.gain.value = 0; res(); }, t * 1000);
+    });
     window.__stream = dest.stream;
     return dest.stream;
   };`;
@@ -111,30 +116,82 @@ const state = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("swa
       await page.waitForFunction(() => document.getElementById("micBtn").textContent === "Stop listening");
     });
 
-    await step("holding Sa for 3 seconds is recorded for the stage gate", async () => {
-      await page.evaluate((hz) => window.__sing(hz), mtof(SA + 0.1));
+    await step("Hold Sa shows a running timer toward 3 seconds and says why it reset", async () => {
+      await page.evaluate((hz) => { window.__gate.gain.value = 0.3; window.__sing(hz); }, mtof(SA + 0.1));
       await page.click("#modeTune"); await page.waitForTimeout(3600);
+      assert.match(await page.textContent("#holdTime"), /of 3\.0 s/);
       assert.ok((await state(page)).saHold[await page.evaluate(() => SRS.localToday())] >= 3);
+      assert.match(await page.textContent("#holdMilestones"), /3 s ✓/);
+      await page.evaluate((hz) => window.__sing(hz), mtof(SA + 0.45));
+      await page.waitForFunction(() => /sharp/.test(document.getElementById("holdNote").textContent), null, { timeout: 3000 });
     });
 
-    await step("sing reviews score every target the singer hits and reschedule the cards", async () => {
+    const phraseNow = () => page.evaluate(() => JSON.parse(document.getElementById("rvPhrase").dataset.phrase));
+    const phaseIs = (re) => page.waitForFunction((src) => new RegExp(src).test(document.getElementById("rvPhase").textContent), re.source, { timeout: 15000 });
+    const singIt = async (centsOff = 0) => {
+      const p = await phraseNow();
+      await page.evaluate((parts) => window.__singPhrase(parts), p.map((n) => [mtof(n.midi + centsOff / 100), n.dur + 0.3]));
+    };
+
+    await step("sing reviews wait for you: nothing moves on while you are silent", async () => {
+      await fresh();
+      await page.click('[data-tab-btn="sing"]'); await page.click("#micBtn");
+      await page.evaluate(() => { window.__gate.gain.value = 0; });
       await page.click("#modeMatch");
-      for (let i = 0; i < 6; i++) {
-        await page.waitForFunction((n) => window.__played.length >= n, i + 1, { timeout: 5000 });
-        const target = await page.evaluate(() => window.__played[window.__played.length - 1][1]);
-        await page.evaluate((hz) => window.__sing(hz), mtof(target));
-        await page.waitForFunction((n) => document.getElementById("tgEyebrow").textContent !== "Sing this · " + n + " of 6", i + 1, { timeout: 8000 });
-      }
-      assert.match(await page.textContent("#tgName"), /6 of 6 hit/);
+      await phaseIs(/Your turn/);
+      await page.waitForTimeout(6000);
+      assert.match(await page.textContent("#rvPhase"), /Your turn/);
+      assert.match(await page.textContent("#rvCount"), /Review 1 of 6/);
       const st = await state(page);
-      assert.equal(st.cards["sing:0"].box, 1); assert.equal(st.cards["sing:7"].box, 1);
+      assert.ok(Object.keys(st.cards).filter((k) => k.startsWith("sing:")).every((k) => st.cards[k].seen === 0), "a card was graded");
     });
 
-    await step("singing the wrong note is a miss, not a hit", async () => {
-      await page.click("#modeMatch");
-      await page.waitForFunction(() => document.getElementById("tgEyebrow").textContent.startsWith("Sing this · 1"));
-      await page.evaluate((hz) => window.__sing(hz), mtof(SA + 3)); // komal Ga: never a stage-1 target
-      await page.waitForFunction(() => /Missed/.test(document.getElementById("tgMsg").textContent), null, { timeout: 12000 });
+    await step("the app does not score its own reference note", async () => {
+      await page.click("#rvHear");
+      await page.waitForFunction(() => /Listen/.test(document.getElementById("rvPhase").textContent));
+      const p = await phraseNow();
+      await page.evaluate((hz) => { window.__gate.gain.value = 0.3; window.__sing(hz); }, mtof(p[p.length - 1].midi));
+      await phaseIs(/Your turn/);
+      await page.evaluate(() => { window.__gate.gain.value = 0; });
+      await page.waitForTimeout(3000);
+      assert.match(await page.textContent("#rvPhase"), /Your turn/);
+    });
+
+    await step("a sharp first try is explained; you retry until right; only the first try schedules the card", async () => {
+      const target = await page.evaluate(() => JSON.parse(document.getElementById("rvPhrase").dataset.target));
+      await singIt(50);
+      await phaseIs(/Result/);
+      assert.match(await page.textContent("#rvResult"), /sharp/);
+      assert.equal(await page.isVisible("#rvRetry"), true);
+      assert.ok(!(await page.getAttribute("#rvNext", "class") || "").includes("primary"), "Next should not be the main button yet");
+      let st = await state(page);
+      assert.equal(st.cards["sing:" + target].box, 1); assert.deepEqual(st.recent.sing, [0]);
+      await page.click("#rvRetry");
+      await phaseIs(/Your turn/);
+      await singIt(0);
+      await phaseIs(/Result/);
+      assert.match(await page.textContent("#rvResult"), /✓/);
+      assert.ok((await page.getAttribute("#rvNext", "class")).includes("primary"));
+      assert.match(await page.textContent("#rvCount"), /Review 1 of 6 · try 2/);
+      st = await state(page);
+      assert.equal(st.cards["sing:" + target].box, 1, "a retry does not reschedule");
+      assert.deepEqual(st.recent.sing, [0], "a retry does not count toward unlocking");
+    });
+
+    await step("a right first try moves the card up, and the next review waits for you to tap Next", async () => {
+      await page.waitForTimeout(2500);
+      assert.match(await page.textContent("#rvCount"), /Review 1 of 6/, "moved on by itself");
+      await page.click("#rvNext");
+      await phaseIs(/Listen|Your turn/);
+      assert.match(await page.textContent("#rvCount"), /Review 2 of 6 · try 1/);
+      const target = await page.evaluate(() => JSON.parse(document.getElementById("rvPhrase").dataset.target));
+      const before = (await state(page)).cards["sing:" + target];
+      await phaseIs(/Your turn/);
+      await singIt(0);
+      await phaseIs(/Result/);
+      const after = (await state(page)).cards["sing:" + target];
+      if (before.due <= await page.evaluate(() => SRS.localToday())) assert.equal(after.box, before.box + 1);
+      assert.match(await page.textContent("#rvResult"), /✓/);
     });
 
     await step("the Sa picker shows your whole scale, and it follows a new Sa", async () => {

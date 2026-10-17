@@ -93,6 +93,18 @@
   .scale-strip .fixed-note { background: var(--brass-soft); border-color: var(--brass); }
   .level { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
   .level .bar > i { background: var(--good); transition: width 60ms linear; }
+  .phrase { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .phrase .pn { display: inline-flex; flex-direction: column; align-items: center; padding: 6px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); min-width: 58px; }
+  .phrase .pn b { font-family: var(--display); font-weight: 400; font-size: 1.5rem; line-height: 1.1; }
+  .phrase .pn span { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); }
+  .phrase .pn.done { background: var(--good-soft); border-color: var(--good); }
+  .phrase .pn.miss { background: var(--bad-soft); border-color: var(--bad); }
+  .phrase .arrow { color: var(--muted); }
+  .verdict { display: grid; grid-template-columns: 28px 1fr; gap: 8px; align-items: start; }
+  .verdict .ic { font-weight: 700; text-align: center; }
+  .verdict.ok .ic { color: var(--good); } .verdict.bad .ic { color: var(--bad); }
+  .banner { font-family: var(--display); font-size: 1.4rem; }
+  .banner.ok { color: var(--good); }
   .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 12px; z-index: 20; font-weight: 600; max-width: calc(100% - 32px); }
 </style>
 
@@ -169,11 +181,23 @@
       <div class="meter-labels"><span>−50 flat</span><span>in tune</span><span>sharp +50</span></div>
       <div class="level" title="Microphone level"><span class="eyebrow">Mic</span><div class="bar"><i id="micLevel" style="width:0%"></i></div></div>
       <canvas class="lane" id="lane" width="700" height="280" aria-label="Your pitch over the last few seconds, against swara lines"></canvas>
-      <div class="panel" id="targetPanel" hidden>
-        <div class="target"><div><span class="eyebrow" id="tgEyebrow">Sing this</span><div class="name" id="tgName">Sa</div></div>
-          <div class="row"><button type="button" id="tgPlay" class="brass">Hear it</button><button type="button" id="tgSkip">Skip</button></div></div>
+      <div class="panel" id="holdPanel" hidden>
+        <div class="target"><div><span class="eyebrow">Hold this</span><div class="name" id="holdName">Sa</div></div>
+          <button type="button" id="holdHear" class="brass">Hear Sa</button></div>
         <div class="hold"><i id="holdBar"></i></div>
-        <span class="msg" id="tgMsg">Hold the note in the green for under a second to score it.</span>
+        <div class="row" style="justify-content: space-between"><span class="num" id="holdTime">0.0 s of 3.0 s</span><span class="num muted" id="holdMilestones">1 s · 2 s · 3 s</span></div>
+        <span class="msg" id="holdNote">Sing "aa" on Sa and keep your line inside the green band for 3 seconds. Small wobbles are forgiven.</span>
+      </div>
+      <div class="panel" id="reviewPanel" hidden>
+        <div class="row" style="justify-content: space-between"><span class="eyebrow" id="rvCount">Review 1 of 6 · try 1</span><span class="chip" id="rvPhase">1 · Listen</span></div>
+        <div class="phrase" id="rvPhrase" data-phrase="[]" data-target="0"></div>
+        <p class="msg" id="rvRule"></p>
+        <div class="stack" id="rvResult" aria-live="polite"></div>
+        <div class="row">
+          <button type="button" class="brass" id="rvHear">Hear it again</button>
+          <button type="button" id="rvRetry" hidden>Try again</button>
+          <button type="button" id="rvNext" hidden>Next</button>
+        </div>
       </div>
       <div class="row">
         <button type="button" class="primary" id="micBtn">Start listening</button>
@@ -275,6 +299,7 @@
 
 <script src="assets/swara.js"></script>
 <script src="assets/srs.js"></script>
+<script src="assets/sing.js"></script>
 <script>
 (function () {
   "use strict";
@@ -433,13 +458,13 @@
     $("micLevel").style.width = Math.round(S.level(rms) * 100) + "%";
     var now = ts / 1000;
     trail.push({ t: now, m: m }); while (trail.length && trail[0].t < now - 8) trail.shift();
-    onPitch(m, dt);
+    onPitch(m, dt, now);
     drawLane(now);
     requestAnimationFrame(loop);
   }
 
   /* ---------- Readout, modes and matching ---------- */
-  var mode = "free", match = null, tune = { run: 0, best: 0 };
+  var mode = "free";
   function setReadout(m) {
     if (m == null) { $("rdSwara").innerHTML = "–"; $("rdSub").textContent = mic.on && mic.rms > 0.02 ? "Hearing sound, but no clear note" : "Sing \"aa\""; $("needle").style.left = "50%"; return; }
     var d = S.describe(S.mtof(m), st.saMidi);
@@ -449,72 +474,156 @@
     $("needle").style.left = (50 + c) + "%";
   }
   var centsTo = S.pcDistance;
-  function onPitch(m, dt) {
+  function onPitch(m, dt, t) {
     setReadout(m);
-    if (mode === "tune") {
-      var ok = m != null && Math.abs(centsTo(m, st.saMidi)) <= 25 && Math.abs((m - st.saMidi) * 100) < 600;
-      tune.run = ok ? tune.run + dt : 0;
-      if (tune.run > tune.best) {
-        tune.best = tune.run;
-        var t = today(); if ((st.saHold[t] || 0) < tune.best) { st.saHold[t] = Math.round(tune.best * 10) / 10; if (tune.best >= 3 && !tune.saved) { tune.saved = true; toast("Held Sa for 3 seconds. Gate progress saved."); persist(); } }
-      }
-      $("holdBar").style.width = Math.min(100, tune.run / 3 * 100) + "%";
-      $("tgMsg").textContent = "Longest hold today: " + (st.saHold[today()] || 0).toFixed(1) + " s (goal: 3 s within 25 cents)";
-    }
-    if (mode === "match" && match && match.cur != null && !match.locked) {
-      var target = st.saMidi + match.cur;
-      var inside = m != null && Math.abs(centsTo(m, target)) <= 35;
-      if (inside) { match.hold += dt; match.err.push(Math.abs(centsTo(m, target))); }
-      else match.hold = Math.max(0, match.hold - dt * 0.5);
-      $("holdBar").style.width = Math.min(100, match.hold / 0.8 * 100) + "%";
-      if (m != null && !inside) { var c = centsTo(m, target); $("tgMsg").textContent = Math.abs(c) > 150 ? "Far off: listen again, then slide toward it." : c < 0 ? "A little flat: go up." : "A little sharp: come down."; }
-      if (match.hold >= 0.8) finishTarget(true);
-      else if (performance.now() - match.started > 9000) finishTarget(false);
+    if (mode === "tune" && hold) holdFrame(hold.frame(t, m, st.saMidi));
+    if (mode === "match" && review && review.drill) {
+      var before = review.drill.phase();
+      review.drill.frame(t, m);
+      var after = review.drill.phase();
+      if (after !== before && after === "result") onReviewResult();
+      else if (after !== before || after === "sing") renderReview();
     }
   }
+
+  /* ---------- Hold Sa ---------- */
+  var hold = null, holdToasted = false, holdMsgUntil = 0;
+  function holdFrame(s) {
+    var shown = Math.min(s.run, s.goal);
+    $("holdBar").style.width = Math.round(shown / s.goal * 100) + "%";
+    $("holdTime").textContent = shown.toFixed(1) + " s of " + s.goal.toFixed(1) + " s" + (s.run >= s.goal ? " ✓" : "");
+    $("holdMilestones").textContent = [1, 2, 3].map(function (k) { return s.best >= k ? k + " s ✓" : k + " s"; }).join(" · ");
+    var day = today();
+    if (s.best > (st.saHold[day] || 0)) {
+      st.saHold[day] = Math.round(s.best * 10) / 10;
+      if (s.best >= 3 && !holdToasted) { holdToasted = true; toast("Held Sa for 3 seconds. Gate progress saved."); persist(); }
+    }
+    var note = $("holdNote");
+    if (s.reset) {
+      note.textContent = s.reset.why === "stopped" ? "Your note stopped at " + s.reset.after.toFixed(1) + " s. Breathe in, and go again."
+        : s.reset.why === "sharp" ? "Drifted sharp at " + s.reset.after.toFixed(1) + " s: ease down a little and go again."
+        : "Drifted flat at " + s.reset.after.toFixed(1) + " s: lift it a little and go again.";
+      holdMsgUntil = performance.now() + 2500;
+      persist();
+    } else if (!(holdMsgUntil > performance.now())) {
+      note.textContent = s.run >= s.goal ? "Three seconds in the green. Keep going, or rest: today's goal is done."
+        : s.inside ? "In the green. Keep it steady."
+        : s.cents == null ? "Sing \"aa\" on Sa."
+        : s.cents > 0 ? "A little sharp: come down into the green." : "A little flat: lift into the green.";
+    }
+  }
+  function startHold() {
+    hold = Sing.createHoldMeter({ tol: 25, goal: 3 }); holdToasted = (st.saHold[today()] || 0) >= 3;
+    $("holdName").innerHTML = S.swaraHTML(0) + ' <span class="muted" style="font-size:1rem">' + S.letter(st.saMidi) + "</span>";
+    $("holdBar").style.width = "0%"; $("holdTime").textContent = "0.0 s of 3.0 s"; $("holdMilestones").textContent = "1 s · 2 s · 3 s";
+    if (!S.droneOn()) { S.droneStart(st.saMidi, st.droneFirst); $("droneBtn").setAttribute("aria-pressed", "true"); }
+  }
+  $("holdHear").addEventListener("click", function () { S.seq([st.saMidi], 1.6); });
+
+  /* ---------- Sing reviews: listen, your turn, result ---------- */
+  var review = null;
+  function startReviews() {
+    review = { q: buildQueue("sing", 6), i: 0, hits: 0, graded: {} };
+    loadReview();
+  }
+  function loadReview() {
+    $("rvResult").innerHTML = "";
+    if (review.i >= review.q.length) {
+      review.drill = null;
+      $("rvPhase").textContent = "Done";
+      $("rvCount").textContent = review.q.length + " reviews · " + review.hits + " right first time";
+      $("rvPhrase").innerHTML = ""; $("rvRule").textContent = "Your cards are rescheduled. Retries are practice and do not change them.";
+      $("rvHear").hidden = true; $("rvRetry").hidden = true;
+      $("rvNext").hidden = false; $("rvNext").textContent = "Another round"; $("rvNext").className = "primary";
+      renderToday(); drawLane(); return;
+    }
+    var target = review.q[review.i], level = Sing.levelForBox(card("sing", target).box);
+    review.target = target;
+    review.phrase = Sing.buildPhrase(target, deckItems("sing"), level, Math.random);
+    review.drill = Sing.createDrill(review.phrase, st.saMidi);
+    $("rvHear").hidden = false; $("rvRetry").hidden = true; $("rvNext").hidden = true;
+    $("rvRule").textContent = Sing.RULE_TEXT;
+    renderReview();
+    playPhrase();
+  }
+  function nowSec() { return performance.now() / 1000; }
+  function playPhrase() {
+    var d = review && review.drill; if (!d) return;
+    if (d.phase() !== "listen") d.retry();
+    var p = review.phrase, c = S.ac(), lead = 0.05;
+    S.seq(p.notes.map(function (n) { return st.saMidi + n.deg; }), p.notes[0].dur, 0.05);
+    review.playStart = nowSec() + lead;
+    review.playEnd = review.playStart + p.notes.length * (p.notes[0].dur + 0.05);
+    var drillAtStart = d;
+    setTimeout(function () { if (review && review.drill === drillAtStart) { drillAtStart.playbackDone(nowSec()); renderReview(); } }, (review.playEnd - nowSec()) * 1000 + 150);
+    renderReview();
+    (function anim() { if (review && review.drill === drillAtStart && drillAtStart.phase() === "listen") { drawLane(); requestAnimationFrame(anim); } })();
+  }
+  function noteName(deg) { return S.swaraHTML(deg % 12); }
+  function renderReview() {
+    if (!review || !review.drill) return;
+    var d = review.drill, ph = d.phase(), live = d.live(), res = d.result();
+    $("rvCount").textContent = "Review " + (review.i + 1) + " of " + review.q.length + " · try " + (d.attempts() + (ph === "result" ? 0 : 1));
+    $("rvPhase").textContent = ph === "listen" ? "1 · Listen" : ph === "wait" ? "2 · Your turn: sing when ready" : ph === "sing" ? "2 · Your turn" : "3 · Result";
+    var el = $("rvPhrase");
+    el.dataset.phrase = JSON.stringify(review.phrase.notes.map(function (n) { return { midi: st.saMidi + n.deg, dur: n.dur }; }));
+    el.dataset.target = String(review.target);
+    el.innerHTML = review.phrase.notes.map(function (n, i) {
+      var cls = live[i] && live[i].done ? " done" : res && !res.notes[i].verdict.match(/^ok$/) ? " miss" : "";
+      return (i ? '<span class="arrow">→</span>' : "") + '<span class="pn' + cls + '"><b>' + noteName(n.deg) + "</b><span>" + S.letter(st.saMidi + n.deg) + " · " + n.dur.toFixed(1) + " s</span></span>";
+    }).join("");
+    if (ph === "wait" && !mic.on) $("rvRule").textContent = "Tap Start listening below to sing live, or record yourself singing the phrase and upload it.";
+    else if (ph !== "result") $("rvRule").textContent = Sing.RULE_TEXT;
+    drawLane();
+  }
+  function verdictText(n) {
+    var name = S.SWARAS[n.deg % 12].full;
+    if (n.verdict === "ok") return "<b>" + name + "</b>: held " + n.inTune.toFixed(1) + " s in the green" + (n.cents ? " (" + (n.cents > 0 ? "+" : "") + n.cents + " cents)" : "") + ".";
+    if (n.verdict === "sharp") return "<b>" + name + "</b>: " + n.cents + " cents sharp. Come down a little.";
+    if (n.verdict === "flat") return "<b>" + name + "</b>: " + Math.abs(n.cents) + " cents flat. Lift it a little.";
+    if (n.verdict === "short") return "<b>" + name + "</b>: on pitch, but only " + n.inTune.toFixed(1) + " s in the green. Hold it for 0.8 s.";
+    return "<b>" + name + "</b>: not heard. Listen again and sing every note.";
+  }
+  function onReviewResult() {
+    var d = review.drill, r = d.result(), target = review.target;
+    var first = !review.graded[target], retry = d.attempts() > 1;
+    review.graded[target] = true;
+    grade("sing", target, r.passed, first, retry);
+    if (r.passed && !retry) review.hits++;
+    if (r.passed) {
+      var errs = r.notes.map(function (n) { return Math.abs(n.cents || 0); });
+      st.singErr.push({ d: today(), e: Math.round(errs.reduce(function (a, b) { return a + b; }, 0) / errs.length) });
+      if (st.singErr.length > 200) st.singErr.shift();
+      persist();
+    }
+    $("rvResult").innerHTML = '<span class="banner' + (r.passed ? " ok" : "") + '">' + (r.passed ? "Matched ✓" : "Not yet") + "</span>" +
+      r.notes.map(function (n) { return '<div class="verdict ' + (n.verdict === "ok" ? "ok" : "bad") + '"><span class="ic">' + (n.verdict === "ok" ? "✓" : "✗") + "</span><span>" + verdictText(n) + "</span></div>"; }).join("") +
+      (retry ? '<span class="msg">Retries are practice: the first try sets when this card comes back.</span>' : "");
+    $("rvRetry").hidden = false; $("rvNext").hidden = false;
+    $("rvRetry").className = r.passed ? "" : "primary";
+    $("rvNext").className = r.passed ? "primary" : "";
+    $("rvNext").textContent = r.passed ? "Next" : "Move on";
+    renderReview();
+  }
+  $("rvHear").addEventListener("click", function () { S.ac(); $("rvResult").innerHTML = ""; $("rvRetry").hidden = true; $("rvNext").hidden = true; playPhrase(); });
+  $("rvRetry").addEventListener("click", function () { $("rvResult").innerHTML = ""; $("rvRetry").hidden = true; $("rvNext").hidden = true; playPhrase(); });
+  $("rvNext").addEventListener("click", function () {
+    if (!review || !review.drill) { startReviews(); return; }
+    review.i++; loadReview();
+  });
+
   function setMode(m) {
     mode = m;
     ["Free", "Tune", "Match"].forEach(function (x) { $("mode" + x).setAttribute("aria-pressed", String(m === x.toLowerCase())); });
-    $("targetPanel").hidden = m === "free";
-    $("holdBar").style.width = "0%";
-    if (m === "tune") { $("tgEyebrow").textContent = "Hold this"; $("tgName").innerHTML = S.swaraHTML(0) + " · " + S.letter(st.saMidi); $("tgSkip").hidden = true; tune = { run: 0, best: 0, saved: (st.saHold[today()] || 0) >= 3 }; $("tgMsg").textContent = "Hold Sa within 25 cents for 3 seconds."; if (!S.droneOn()) { S.droneStart(st.saMidi, st.droneFirst); $("droneBtn").setAttribute("aria-pressed", "true"); } }
-    if (m === "match") { $("tgSkip").hidden = false; startMatch(); }
+    $("holdPanel").hidden = m !== "tune";
+    $("reviewPanel").hidden = m !== "match";
+    if (m === "tune") startHold();
+    if (m === "match") startReviews(); else review = null;
     drawLane();
   }
   $("modeFree").addEventListener("click", function () { setMode("free"); });
   $("modeTune").addEventListener("click", function () { setMode("tune"); });
   $("modeMatch").addEventListener("click", function () { setMode("match"); });
-
-  function startMatch() {
-    match = { q: buildQueue("sing", 6), i: 0, cur: null, hold: 0, hits: 0, err: [], seen: {}, locked: false };
-    nextTarget();
-  }
-  function nextTarget() {
-    if (!match) return;
-    if (match.i >= match.q.length) {
-      $("tgEyebrow").textContent = "Done"; $("tgName").textContent = match.hits + " of " + match.q.length + " hit";
-      $("tgMsg").textContent = "Reviews saved. Tap Reviews to go again."; match.cur = null; renderToday(); return;
-    }
-    match.cur = match.q[match.i]; match.hold = 0; match.err = []; match.locked = false; match.started = performance.now() + 1800;
-    $("tgEyebrow").textContent = "Sing this · " + (match.i + 1) + " of " + match.q.length;
-    $("tgName").innerHTML = swaraLabel(match.cur) + ' <span class="muted" style="font-size:1rem">' + S.letter(st.saMidi + match.cur) + "</span>";
-    $("tgMsg").textContent = mic.on ? "Listen, then sing it on \"aa\"." : "Sing it into your phone's recorder for 3 seconds, then upload. Or start listening for live feedback.";
-    playTarget();
-  }
-  function playTarget() { if (match && match.cur != null) { S.seq([st.saMidi, st.saMidi + match.cur], 0.7, 0.15); match.started = performance.now() + 1800; } }
-  function finishTarget(ok, errOverride) {
-    match.locked = true;
-    var first = !match.seen[match.cur]; match.seen[match.cur] = 1;
-    var err = errOverride != null ? errOverride : (match.err.length ? match.err.reduce(function (a, b) { return a + b; }, 0) / match.err.length : null);
-    if (ok && err != null) { st.singErr.push({ d: today(), e: Math.round(err) }); if (st.singErr.length > 200) st.singErr.shift(); }
-    grade("sing", match.cur, ok, first);
-    if (ok) match.hits++;
-    $("tgMsg").textContent = ok ? "Hit" + (err != null ? ", average " + Math.round(err) + " cents off." : ".") : "Missed this time. The card comes back tomorrow.";
-    match.i++;
-    setTimeout(nextTarget, 1100);
-  }
-  $("tgPlay").addEventListener("click", function () { if (mode === "tune") S.seq([st.saMidi], 1.4); else playTarget(); });
-  $("tgSkip").addEventListener("click", function () { if (match && match.cur != null && !match.locked) finishTarget(false); });
 
   /* ---------- Uploaded recordings ---------- */
   $("fileIn").addEventListener("change", function (e) {
@@ -527,16 +636,15 @@
       trail = frames.map(function (x) { return { t: base + x.t * (8 / Math.max(dur, 0.1)), m: x.freq ? S.ftom(x.freq) : null }; });
       drawLane(8);
       var ms = voiced.map(function (x) { return S.ftom(x.freq); });
-      if (mode === "match" && match && match.cur != null && !match.locked) {
-        var target = st.saMidi + match.cur, inside = ms.filter(function (m) { return Math.abs(centsTo(m, target)) <= 35; });
-        var share = inside.length / ms.length, secs = inside.length * 1024 / buf.sampleRate;
-        var err = inside.length ? inside.reduce(function (a, m) { return a + Math.abs(centsTo(m, target)); }, 0) / inside.length : null;
-        $("micMsg").textContent = Math.round(share * 100) + "% of your sung time was on the target.";
-        finishTarget(share >= 0.5 && secs >= 0.8, err);
+      if (mode === "match" && review && review.drill) {
+        review.drill.submit(frames.map(function (x) { return { t: x.t, m: x.freq ? S.ftom(x.freq) : null }; }));
+        $("micMsg").textContent = "Scored your recording against the phrase.";
+        onReviewResult();
       } else if (mode === "tune") {
-        var run = 0, best = 0, hop = 1024 / buf.sampleRate;
-        frames.forEach(function (x) { var ok = x.freq && Math.abs(centsTo(S.ftom(x.freq), st.saMidi)) <= 25; run = ok ? run + hop : 0; if (run > best) best = run; });
-        var t = today(); if ((st.saHold[t] || 0) < best) st.saHold[t] = Math.round(best * 10) / 10; persist();
+        var hm = Sing.createHoldMeter({ tol: 25, goal: 3 }), last = null;
+        frames.forEach(function (x) { last = hm.frame(x.t, x.freq ? S.ftom(x.freq) : null, st.saMidi); });
+        var best = last ? last.best : 0, t = today();
+        if ((st.saHold[t] || 0) < best) st.saHold[t] = Math.round(best * 10) / 10; persist();
         $("micMsg").textContent = "Longest steady Sa in that recording: " + best.toFixed(1) + " s within 25 cents.";
       } else {
         var counts = {}; ms.forEach(function (m) { var d = S.describe(S.mtof(m), st.saMidi); counts[d.deg] = (counts[d.deg] || 0) + 1; });
@@ -564,7 +672,8 @@
       if (open) { g.fillStyle = isFixed ? brass : ink; g.fillText((sw.mark === "komal" ? "k" : sw.mark === "tivra" ? "t" : "") + sw.name + (r < 0 ? "·" : r >= 12 ? "'" : ""), 6, yy + 4); }
       g.globalAlpha = 1;
     }
-    var target = mode === "tune" ? st.saMidi : (mode === "match" && match && match.cur != null ? st.saMidi + match.cur : null);
+    if (mode === "match" && review && review.drill) { drawPhraseLane(g, w, h, y, lo, hi); return; }
+    var target = mode === "tune" ? st.saMidi : null;
     if (target != null) { g.fillStyle = good; g.globalAlpha = 0.18; g.fillRect(44, y(target + 0.35), w - 50, y(target - 0.35) - y(target + 0.35)); g.globalAlpha = 1; }
     if (!trail.length) { g.fillStyle = ink; g.fillText("Your voice draws a line here.", 52, h / 2 - 30); return; }
     var tEnd = typeof now === "number" ? now : trail[trail.length - 1].t, span = 8;
@@ -576,6 +685,42 @@
       var x = 44 + (1 - (tEnd - p.t) / span) * (w - 50);
       if (pen) g.lineTo(x, y(p.m)); else { g.moveTo(x, y(p.m)); pen = true; }
       prev = p.m;
+    });
+    g.stroke();
+  }
+  // Reviews: the phrase as target blocks, a cursor while it plays, and your voice on top.
+  function drawPhraseLane(g, w, h, y, lo, hi) {
+    var d = review.drill, p = review.phrase, span = p.total + 1.5, x = function (t) { return 44 + (t / span) * (w - 50); };
+    var live = d.live(), res = d.result(), good = css("--good"), bad = css("--bad"), acc = css("--accent"), soft = css("--accent-soft"), ink = css("--muted");
+    var t0 = 0;
+    p.notes.forEach(function (n, i) {
+      var m = st.saMidi + n.deg, top = y(m + 0.35), bot = y(m - 0.35);
+      var done = live[i] && live[i].done, miss = res && res.notes[i].verdict !== "ok";
+      g.globalAlpha = done ? 0.55 : 0.35; g.fillStyle = done ? good : miss ? bad : soft;
+      g.fillRect(x(t0), top, x(t0 + n.dur) - x(t0), bot - top);
+      g.globalAlpha = 1; g.strokeStyle = done ? good : miss ? bad : acc; g.lineWidth = 1.5;
+      g.strokeRect(x(t0), top, x(t0 + n.dur) - x(t0), bot - top);
+      t0 += n.dur;
+    });
+    var ph = d.phase();
+    if (ph === "listen" && review.playStart) {
+      var c = Math.max(0, nowSec() - review.playStart) * (p.total / Math.max(0.1, review.playEnd - review.playStart));
+      g.strokeStyle = ink; g.lineWidth = 2; g.beginPath(); g.moveTo(x(c), 8); g.lineTo(x(c), h - 8); g.stroke();
+      g.fillStyle = ink; g.fillText("Listen…", 52, 18);
+      return;
+    }
+    if (ph === "wait") { g.fillStyle = ink; g.fillText("Your turn: sing when ready. The clock starts when you do.", 52, 18); return; }
+    var fr = d.frames(); if (!fr.length) return;
+    var start = fr[0].t;
+    if (ph === "sing") { var cx = x(fr[fr.length - 1].t - start); g.strokeStyle = ink; g.lineWidth = 1; g.beginPath(); g.moveTo(cx, 8); g.lineTo(cx, h - 8); g.stroke(); }
+    g.strokeStyle = acc; g.lineWidth = 3; g.lineJoin = "round"; g.beginPath();
+    var pen = false, prev = null;
+    fr.forEach(function (f) {
+      var tt = f.t - start;
+      if (f.m == null || f.m < lo || f.m > hi || tt > span) { pen = false; prev = null; return; }
+      if (prev != null && Math.abs(f.m - prev) > 1.5) pen = false;
+      if (pen) g.lineTo(x(tt), y(f.m)); else { g.moveTo(x(tt), y(f.m)); pen = true; }
+      prev = f.m;
     });
     g.stroke();
   }

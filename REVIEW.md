@@ -41,6 +41,12 @@ The foundations are right: relative pitch first (which is how Indian music alrea
 - **Privacy:** going to the background stops listening, releases the microphone and silences the drone; it never restarts by itself.
 - **Side effect:** with echo cancellation off, the drone leaks into the mic more without earphones, so gap 1 below matters more.
 
+## Sing Reviews redesign (17 October, reported by Ajay)
+
+What was wrong: a hidden 9-second timer failed notes and moved on; the hold rule (0.8 s) was never stated and differed from Hold Sa (3 s); it advanced while you were still singing and played the next reference over you; the mic could score the app's own reference; no retry; "Skip" counted as a miss; the instructions did not say to sing only the target; feedback was a line of small text.
+
+Now: call and response, in three phases. **Listen** (the phrase plays and is drawn as target blocks; scoring is off, plus a 0.3 s echo guard). **Your turn** (waits indefinitely; the clock starts when you start; your voice draws over the blocks and each block lights green once held 0.8 s within 35 cents). **Result** (per note: held time, or how many cents sharp or flat, too short, or not heard; Try again as often as you like; nothing advances until you tap Next). Your curve is aligned to the phrase in order, so singing slower, later or scooping into a note still counts. Phrases grow per card: one held note, then Sa to the note, then three-note shapes. The first try sets the card's schedule; retries are practice. Hold Sa shows a running timer, 1/2/3 s milestones, and why it reset. 23 unit tests (`tests/sing.test.js`) and 5 end-to-end checks.
+
 ## Open gaps, ranked
 
 1. **Drone bleed can fake progress (high).** Without earphones, the microphone can hear the drone's Sa and score "Hold Sa" as a hit. Next fix: a "No earphones" mode that plays the reference, then stops the drone while you sing; and a test with drone audio fed into the mic.
