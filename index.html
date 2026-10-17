@@ -110,6 +110,14 @@
       <button type="button" id="saFind">Find from my voice</button>
     </div>
     <div class="scale-strip" id="saScale" aria-label="Your scale"></div>
+    <div class="row">
+      <label for="droneFirst" class="muted">Drone first string</label>
+      <select id="droneFirst">
+        <option value="Pa">Low Pa · most ragas</option>
+        <option value="Ma">Low Ma · ragas without Pa, e.g. Malkauns</option>
+        <option value="Ni">Low Ni · e.g. Marva, Puriya</option>
+      </select>
+    </div>
     <p class="msg" id="saMsg"></p>
   </section>
 
@@ -364,10 +372,12 @@
     $("saChip").addEventListener("click", function () { var p = $("saPanel"); p.hidden = !p.hidden; $("saChip").setAttribute("aria-expanded", String(!p.hidden)); });
     $("saPlay").addEventListener("click", function () { S.seq([st.saMidi], 1.4); });
     $("saFind").addEventListener("click", findSa);
+    $("droneFirst").addEventListener("change", function () { st.droneFirst = $("droneFirst").value; S.droneSetFirst(st.droneFirst); persist(); });
   })();
   function setSa(m) { st.saMidi = m; st.saSet = true; S.droneSetSa(m); persist(); renderSa(); drawLane(); }
   function renderSa() {
     $("saChip").textContent = "Sa = " + S.letter(st.saMidi); $("saSelect").value = String(st.saMidi);
+    $("droneFirst").value = st.droneFirst || "Pa"; S.droneSetFirst(st.droneFirst || "Pa");
     var html = S.scale(st.saMidi).map(function (n) {
       return '<button type="button" class="note' + (n.deg % 12 === 0 || n.deg === 7 ? " fixed-note" : "") + '" data-midi="' + n.midi + '"><span class="sn">' + S.swaraHTML(n.deg % 12, { oct: n.deg >= 12 ? 1 : 0 }) + '</span><span class="sl">' + n.letter + '</span><span class="ss">' + n.sol + "</span></button>";
     }).join("");
@@ -402,7 +412,7 @@
   }
   $("micBtn").addEventListener("click", function () { S.ac(); if (mic.on) stopMic(); else startMic().catch(micBlockedMsg); });
   $("droneBtn").addEventListener("click", function () {
-    if (S.droneOn()) S.droneStop(); else S.droneStart(st.saMidi);
+    if (S.droneOn()) S.droneStop(); else S.droneStart(st.saMidi, st.droneFirst);
     $("droneBtn").setAttribute("aria-pressed", String(S.droneOn()));
   });
 
@@ -462,7 +472,7 @@
     ["Free", "Tune", "Match"].forEach(function (x) { $("mode" + x).setAttribute("aria-pressed", String(m === x.toLowerCase())); });
     $("targetPanel").hidden = m === "free";
     $("holdBar").style.width = "0%";
-    if (m === "tune") { $("tgEyebrow").textContent = "Hold this"; $("tgName").innerHTML = S.swaraHTML(0) + " · " + S.letter(st.saMidi); $("tgSkip").hidden = true; tune = { run: 0, best: 0, saved: (st.saHold[today()] || 0) >= 3 }; $("tgMsg").textContent = "Hold Sa within 25 cents for 3 seconds."; if (!S.droneOn()) { S.droneStart(st.saMidi); $("droneBtn").setAttribute("aria-pressed", "true"); } }
+    if (m === "tune") { $("tgEyebrow").textContent = "Hold this"; $("tgName").innerHTML = S.swaraHTML(0) + " · " + S.letter(st.saMidi); $("tgSkip").hidden = true; tune = { run: 0, best: 0, saved: (st.saHold[today()] || 0) >= 3 }; $("tgMsg").textContent = "Hold Sa within 25 cents for 3 seconds."; if (!S.droneOn()) { S.droneStart(st.saMidi, st.droneFirst); $("droneBtn").setAttribute("aria-pressed", "true"); } }
     if (m === "match") { $("tgSkip").hidden = false; startMatch(); }
     drawLane();
   }

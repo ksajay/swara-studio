@@ -127,3 +127,63 @@ test("the piano timbre's partials sit just above whole multiples, like real stri
   for (let n = 2; n <= p.length; n++) assert.ok(p[n - 1].freq > 220 * n && p[n - 1].freq < 220 * n * 1.02);
   for (let n = 1; n < p.length; n++) assert.ok(p[n].amp < p[n - 1].amp && p[n].decay < p[n - 1].decay);
 });
+
+/* ---------- Drone (tanpura) ---------- */
+function rmsAt(buf, sr, t, w = 0.03) { const a = Math.floor(t * sr), b = Math.min(buf.length, a + Math.floor(w * sr)); let s = 0; for (let i = a; i < b; i++) s += buf[i] * buf[i]; return Math.sqrt(s / (b - a)); }
+function centroidAt(buf, sr, t) {
+  const n = 2048, a = Math.floor(t * sr); let num = 0, den = 0;
+  for (let k = 1; k < 400; k++) {
+    let re = 0, im = 0;
+    for (let i = 0; i < n; i++) { const w = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / n), x = buf[a + i] * w, ph = 2 * Math.PI * k * i / n; re += x * Math.cos(ph); im -= x * Math.sin(ph); }
+    const mag = Math.hypot(re, im); num += mag * k * sr / n; den += mag;
+  }
+  return num / den;
+}
+
+test("the standard tanpura is tuned low Pa, Sa, Sa, low Sa, with pure intervals", () => {
+  const sa = S.mtof(48), d = S.droneStrings(48);
+  assert.deepEqual(d.map((x) => x.name), ["Pa", "Sa", "Sa", "Sa"]);
+  assert.deepEqual(d.map((x) => x.oct), [-1, 0, 0, -1]);
+  assert.ok(Math.abs(d[0].freq - sa * 3 / 4) < 1e-9, "low Pa is 3/4 of Sa: a pure 3:2 fifth above low Sa");
+  assert.ok(Math.abs(d[1].freq - sa) < 1e-9 && Math.abs(d[2].freq - sa) < 1e-9);
+  assert.ok(Math.abs(d[3].freq - sa / 2) < 1e-9);
+});
+
+test("the first string can be retuned to low Ma or low Ni for ragas that need it", () => {
+  const sa = S.mtof(50);
+  assert.ok(Math.abs(S.droneStrings(50, "Ma")[0].freq - sa * 2 / 3) < 1e-9);
+  assert.ok(Math.abs(S.droneStrings(50, "Ni")[0].freq - sa * 15 / 16) < 1e-9);
+  assert.deepEqual(S.droneStrings(50, "Ni").slice(1).map((x) => x.name), ["Sa", "Sa", "Sa"]);
+});
+
+const TSR = 44100, TDUR = 4;
+const strings = [S.mtof(48) * 3 / 4, S.mtof(48), S.mtof(48) / 2, S.mtof(57)];
+
+test("each tanpura string sounds at its tuned pitch, measured from the rendered sound", () => {
+  for (const f of strings) {
+    const buf = S.tanpuraSamples(f, TSR, TDUR);
+    for (const t of [0.4, 1.5, 3.0]) {
+      const r = S.detect(buf.subarray(Math.floor(t * TSR), Math.floor(t * TSR) + 2048), TSR);
+      assert.ok(r && Math.abs(centsOff(r.freq, f)) < 4, `${f.toFixed(1)} Hz at ${t}s: got ${r && r.freq.toFixed(2)}`);
+    }
+  }
+});
+
+test("a tanpura pluck swells in rather than starting at full volume", () => {
+  const buf = S.tanpuraSamples(S.mtof(48), TSR, TDUR);
+  assert.ok(rmsAt(buf, TSR, 0.25) > 1.5 * rmsAt(buf, TSR, 0.0, 0.01));
+});
+
+test("its brightness slides downward over the pluck, like the jawari bridge", () => {
+  const buf = S.tanpuraSamples(S.mtof(48), TSR, TDUR);
+  const early = centroidAt(buf, TSR, 0.15), late = centroidAt(buf, TSR, 2.0);
+  assert.ok(early > late * 1.25, `centroid ${early.toFixed(0)} Hz early vs ${late.toFixed(0)} Hz late`);
+  assert.ok(early > 3 * S.mtof(48), "early sound is rich in upper overtones");
+});
+
+test("it sustains long enough for plucks to overlap into one continuous sound", () => {
+  const buf = S.tanpuraSamples(S.mtof(48), TSR, TDUR);
+  let peak = 0; for (let i = 0; i < buf.length; i++) peak = Math.max(peak, Math.abs(buf[i]));
+  assert.ok(peak > 0.5 && peak <= 1.0001, "normalised");
+  assert.ok(rmsAt(buf, TSR, 3.0) > 0.1 * rmsAt(buf, TSR, 0.4), "still ringing at 3 s");
+});

@@ -96,6 +96,19 @@ const state = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("swa
       await page.selectOption("#saSelect", String(SA));
     });
 
+    await step("the drone's first string can be set to Ma or Ni, and the choice is kept", async () => {
+      await fresh();
+      await page.evaluate(() => { document.getElementById("saPanel").hidden = false; });
+      await page.selectOption("#droneFirst", "Ma");
+      await page.click('[data-tab-btn="sing"]'); await page.click("#droneBtn");
+      const cfg = await page.evaluate(() => Swara.droneConfig());
+      assert.equal(cfg.first, "Ma"); assert.equal(cfg.strings[0].name, "Ma");
+      assert.equal((await state(page)).droneFirst, "Ma");
+      await page.click("#droneBtn");
+      await page.reload();
+      assert.equal(await page.inputValue("#droneFirst"), "Ma", "choice survives a reload");
+    });
+
     await step("an ear round mixes at least three instrument sounds", async () => {
       await fresh();
       await page.click('[data-tab-btn="ear"]'); await page.click("#earStart");

@@ -34,7 +34,7 @@
 
   /* ---------- State ---------- */
   function newState() {
-    return { v: 1, updated: 0, saMidi: 48, saSet: false, stage: 0, apStage: 0, cards: {}, recent: { ear: [], sing: [], ap: [] }, days: {}, saHold: {}, gates: {}, singErr: [] };
+    return { v: 1, updated: 0, saMidi: 48, saSet: false, stage: 0, apStage: 0, cards: {}, recent: { ear: [], sing: [], ap: [] }, days: {}, saHold: {}, gates: {}, singErr: [], droneFirst: "Pa" };
   }
   function normalise(raw) {
     var st = Object.assign(newState(), raw || {});

@@ -85,6 +85,49 @@
     return y;
   }
 
+  /* ---------- Tanpura drone ----------
+     Standard tuning is low Pa, Sa, Sa, low Sa; the first string changes to low Ma or low Ni for some
+     ragas. A tanpura is tuned by ear until the beating stops, so its intervals are pure ratios. */
+  var FIRST_STRING = { Pa: 3 / 4, Ma: 2 / 3, Ni: 15 / 16 };
+  function droneStrings(saMidi, first) {
+    first = FIRST_STRING[first] ? first : "Pa";
+    var sa = mtof(saMidi);
+    return [
+      { name: first, oct: -1, freq: sa * FIRST_STRING[first] },
+      { name: "Sa", oct: 0, freq: sa }, { name: "Sa", oct: 0, freq: sa },
+      { name: "Sa", oct: -1, freq: sa / 2 }
+    ];
+  }
+  // One tanpura pluck. A low-loss plucked string (Karplus-Strong, all-pass tuned so the pitch is
+  // exact) plus a resonant band that sweeps down through the overtones, imitating the jawari bridge's
+  // bright burst whose brightness falls over time, and a soft swell as the body comes in.
+  function tanpuraSamples(f, sr, dur) {
+    var len = Math.floor(sr * dur), y = new Float32Array(len), out = new Float32Array(len);
+    var P = sr / f, L = Math.max(2, Math.floor(P - 0.5)), frac = P - 0.5 - L, C = (1 - frac) / (1 + frac);
+    var seed = 98765, rnd = function () { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648 * 2 - 1; };
+    var prevV = 0, prevAp = 0, i, loss = Math.pow(0.5, 1 / (f * 2.2)); // amplitude halves every ~2.2 s
+    for (i = 0; i < len; i++) {
+      if (i < L) { y[i] = rnd(); continue; }
+      var v = loss * (0.55 * y[i - L] + 0.45 * y[i - L - 1 >= 0 ? i - L - 1 : 0]);
+      var ap = C * v + prevV - C * prevAp; prevV = v; prevAp = ap; y[i] = ap;
+    }
+    var x1 = 0, x2 = 0, y1 = 0, y2 = 0, b0 = 0, b2 = 0, a1 = 0, a2 = 0, a0 = 1, peak = 0, Q = 2.5;
+    for (i = 0; i < len; i++) {
+      var t = i / sr;
+      if (i % 32 === 0) {
+        var cf = Math.min(sr * 0.45, 4200 * Math.exp(-t / 0.8) + 3 * f), w0 = 2 * Math.PI * cf / sr, al = Math.sin(w0) / (2 * Q);
+        a0 = 1 + al; b0 = al / a0; b2 = -al / a0; a1 = -2 * Math.cos(w0) / a0; a2 = (1 - al) / a0;
+      }
+      var xb = y[i], bp = b0 * xb + b2 * x2 - a1 * y1 - a2 * y2;
+      x2 = x1; x1 = xb; y2 = y1; y1 = bp;
+      var swell = 1 - Math.exp(-t / 0.12);
+      out[i] = swell * (0.55 * xb + 1.6 * bp * Math.exp(-t / 2.5));
+      peak = Math.max(peak, Math.abs(out[i]));
+    }
+    if (peak > 0) for (i = 0; i < len; i++) out[i] *= 0.9 / peak;
+    return out;
+  }
+
   /* ---------- Pitch detection: YIN (de Cheveigné & Kawahara, 2002) ---------- */
   function detect(buf, sr) {
     var n = buf.length, i, t, rms = 0;
@@ -139,30 +182,28 @@
     if (ctx.state === "suspended") ctx.resume();
     return ctx;
   }
-  // Tanpura-like pluck: three detuned saws through a closing low-pass filter.
-  function pluck(m, t, dur, vol) {
-    var c = ac(); dur = dur || 2.8; vol = vol || 0.07;
-    var f = c.createBiquadFilter(), gn = c.createGain();
-    f.type = "lowpass"; f.Q.value = 0.8;
-    f.frequency.setValueAtTime(3200, t); f.frequency.exponentialRampToValueAtTime(600, t + dur);
-    gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(vol, t + 0.02); gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    [-7, 0, 6].forEach(function (cents) {
-      var o = c.createOscillator(); o.type = "sawtooth"; o.frequency.value = mtof(m); o.detune.value = cents;
-      o.connect(f); o.start(t); o.stop(t + dur + 0.05);
-    });
-    f.connect(gn); gn.connect(master);
+  // Drone playback: each string is rendered once into a buffer, then plucked in the tanpura cycle.
+  var bufCache = {};
+  function stringBuffer(f) {
+    var c = ac(), k = f.toFixed(4) + ":" + c.sampleRate;
+    if (!bufCache[k]) { var d = tanpuraSamples(f, c.sampleRate, 6), b = c.createBuffer(1, d.length, c.sampleRate); b.getChannelData(0).set(d); bufCache[k] = b; }
+    return bufCache[k];
   }
-  // Drone cycle: Pa, Sa, Sa, low Sa, the classic tanpura order.
-  var DRONE = [-5, 0, 0, -12];
+  function pluck(f, t, vol) {
+    var c = ac(), src = c.createBufferSource(), g = c.createGain();
+    src.buffer = stringBuffer(f); g.gain.value = vol || 0.22;
+    src.connect(g); g.connect(master); src.start(t);
+  }
+  var droneFirst = "Pa", GAPS = [0.75, 0.75, 0.75, 1.5]; // even plucks, then a rest after low Sa
   function droneTick() {
-    var c = ac();
+    var c = ac(), strs = droneStrings(droneSa, droneFirst);
     while (droneNext < c.currentTime + 0.3) {
-      pluck(droneSa + DRONE[droneStep % 4], droneNext);
-      droneStep++; droneNext += 0.7;
+      var k = droneStep % 4; pluck(strs[k].freq, droneNext);
+      droneNext += GAPS[k]; droneStep++;
     }
   }
-  function droneStart(saMidi) {
-    droneSa = saMidi; var c = ac();
+  function droneStart(saMidi, first) {
+    droneSa = saMidi; if (first) droneFirst = first; var c = ac();
     if (droneTimer) return;
     droneNext = c.currentTime + 0.05; droneStep = 0; droneTick();
     droneTimer = setInterval(droneTick, 100);
@@ -170,6 +211,8 @@
   function droneStop() { if (droneTimer) { clearInterval(droneTimer); droneTimer = null; } }
   function droneOn() { return !!droneTimer; }
   function droneSetSa(m) { droneSa = m; }
+  function droneSetFirst(name) { if (FIRST_STRING[name]) droneFirst = name; }
+  function droneConfig() { return { sa: droneSa, first: droneFirst, strings: droneStrings(droneSa, droneFirst) }; }
 
   // Harmonium-like reed tone: steady, so it is the reference for singing targets.
   function harmonium(m, t, dur, vol) {
@@ -219,7 +262,8 @@
     SWARAS: SWARAS, LETTERS: LETTERS, mtof: mtof, ftom: ftom, letter: letter, letterPc: letterPc,
     describe: describe, pcDistance: pcDistance, scale: scale, TIMBRES: TIMBRES, pianoPartials: pianoPartials, pluckSamples: pluckSamples, swaraHTML: swaraHTML, octaveName: octaveName,
     detect: detect, analyseBuffer: analyseBuffer,
-    ac: ac, tone: tone, seq: seq, pluck: pluck,
-    droneStart: droneStart, droneStop: droneStop, droneOn: droneOn, droneSetSa: droneSetSa
+    ac: ac, tone: tone, seq: seq,
+    droneStart: droneStart, droneStop: droneStop, droneOn: droneOn, droneSetSa: droneSetSa, droneSetFirst: droneSetFirst, droneConfig: droneConfig,
+    droneStrings: droneStrings, tanpuraSamples: tanpuraSamples
   };
 })(window);

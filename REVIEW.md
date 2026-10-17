@@ -24,6 +24,14 @@ The foundations are right: relative pitch first (which is how Indian music alrea
 | 6 | The browser was free to evict saved progress | Silent loss on a full phone | Requests persistent storage |
 | 7 | Date maths used local-time `setDate` | Edge cases around month ends | Calendar maths in UTC, tested across months, years and leap days |
 
+## Drone review (17 October)
+
+- **Tuning order was right:** low Pa, Sa, Sa, low Sa is the standard tanpura tuning.
+- **Pitch was unmeasured.** Now tested from the rendered sound: every string within 0.26 cents at 0.4, 1, 2 and 3 seconds into a pluck. Low Pa is a pure 3:2 fifth (2 cents above equal temperament), as a tanpura tuned by ear would be.
+- **The old sound was not tanpura-like:** detuned sawtooth plucks with an instant attack and a 3-second fade. Replaced with a plucked-string model plus a downward-sweeping overtone band (imitating the jawari bridge's bright burst whose brightness falls), a 0.12 s swell, and long sustain, all specified by tests (swell, falling spectral centroid, sustain at 3 s).
+- **Added:** first string selectable as low Ma (ragas without Pa) or low Ni (Marva, Puriya), saved with progress.
+- **Still synthetic.** A real recorded tanpura is the gold standard. If you have a recording you are free to use, it can replace the model, with the same pitch tests applied.
+
 ## Open gaps, ranked
 
 1. **Drone bleed can fake progress (high).** Without earphones, the microphone can hear the drone's Sa and score "Hold Sa" as a hit. Next fix: a "No earphones" mode that plays the reference, then stops the drone while you sing; and a test with drone audio fed into the mic.
