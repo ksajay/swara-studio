@@ -103,6 +103,25 @@ const state = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("swa
       await page.evaluate(() => { window.__gate.gain.value = 0.3; });
     });
 
+    await step("the readout never changes size as notes come and go", async () => {
+      const box = () => page.evaluate(() => {
+        const r = document.querySelector(".readout").getBoundingClientRect(), l = document.getElementById("lane").getBoundingClientRect();
+        return { h: Math.round(r.height * 10) / 10, laneTop: Math.round(l.top * 10) / 10, text: document.getElementById("rdSwara").textContent };
+      });
+      const seen = [];
+      const sample = async (label) => { await page.waitForTimeout(350); const b = await box(); b.label = label; seen.push(b); };
+      await page.evaluate(() => { window.__gate.gain.value = 0; }); await sample("silence");
+      await page.evaluate((hz) => { window.__gate.gain.value = 0.3; window.__sing(hz); }, mtof(SA + 4)); await sample("Ga");
+      await page.evaluate((hz) => window.__sing(hz), mtof(SA + 12)); await sample("taar Sa");
+      await page.evaluate((hz) => window.__sing(hz), mtof(SA - 5)); await sample("mandra Pa");
+      await page.evaluate(() => { window.__gate.gain.value = 0; }); await sample("silence again");
+      await page.evaluate(() => { window.__gate.gain.value = 0.3; }); await sample("back on");
+      const hs = new Set(seen.map((b) => b.h)), tops = new Set(seen.map((b) => b.laneTop));
+      assert.ok(seen.some((b) => b.text.startsWith("Ga")) && seen.some((b) => b.text.startsWith("–")), "did not see both states: " + JSON.stringify(seen.map((b) => b.text)));
+      assert.equal(hs.size, 1, "readout heights: " + seen.map((b) => b.label + " " + b.h).join(", "));
+      assert.equal(tops.size, 1, "lane moved: " + seen.map((b) => b.label + " " + b.laneTop).join(", "));
+    });
+
     await step("putting the app in the background stops listening, releases the mic and quiets the drone", async () => {
       await page.click("#droneBtn");
       assert.equal(await page.evaluate(() => Swara.droneOn()), true);
@@ -126,12 +145,17 @@ const state = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("swa
 
     await step("Hold Sa shows a running timer toward 3 seconds and says why it reset", async () => {
       await page.evaluate((hz) => { window.__gate.gain.value = 0.3; window.__sing(hz); }, mtof(SA + 0.1));
-      await page.click("#modeTune"); await page.waitForTimeout(3600);
+      const panelH = () => page.evaluate(() => Math.round(document.getElementById("holdPanel").getBoundingClientRect().height));
+      await page.click("#modeTune");
+      const hs = [await panelH()];
+      for (let k = 0; k < 6; k++) { await page.waitForTimeout(600); hs.push(await panelH()); }
       assert.match(await page.textContent("#holdTime"), /of 3\.0 s/);
       assert.ok((await state(page)).saHold[await page.evaluate(() => SRS.localToday())] >= 3);
       assert.match(await page.textContent("#holdMilestones"), /3 s ✓/);
       await page.evaluate((hz) => window.__sing(hz), mtof(SA + 0.45));
       await page.waitForFunction(() => /sharp/.test(document.getElementById("holdNote").textContent), null, { timeout: 3000 });
+      hs.push(await panelH());
+      assert.equal(new Set(hs).size, 1, "Hold Sa panel heights: " + hs.join(", "));
     });
 
     const phraseNow = () => page.evaluate(() => JSON.parse(document.getElementById("rvPhrase").dataset.phrase));

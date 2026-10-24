@@ -32,10 +32,13 @@
   .stat .l { font-size: 0.8rem; color: var(--muted); }
 
   /* Sing */
-  .readout { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
-  .big { font-family: var(--display); font-size: 3.6rem; line-height: 1; }
+  /* Fixed-size readout: it must not change height as notes come and go. */
+  .readout { display: grid; grid-template-columns: minmax(0, 1fr) 11.5em; gap: 8px; align-items: center; height: 5rem; overflow: hidden; }
+  .big { font-family: var(--display); font-size: 3.6rem; line-height: 1; height: 1.15em; white-space: nowrap; overflow: hidden; display: flex; align-items: center; }
+  .big sup, .big sub { line-height: 0; font-size: 0.5em; }
   .big .dev { font-size: 2.2rem; margin-left: 10px; color: var(--muted); }
-  .sub { font-family: var(--mono); font-size: 0.95rem; color: var(--muted); text-align: right; }
+  .sub { font-family: var(--mono); font-size: 0.95rem; line-height: 1.3; height: 2.6em; overflow: hidden; color: var(--muted); text-align: right; }
+  #holdNote { min-height: calc(3 * 1.55em); }
   .meter { position: relative; height: 28px; border-radius: 999px; background: linear-gradient(90deg, var(--bad-soft), var(--good-soft) 35%, var(--good-soft) 65%, var(--bad-soft)); border: 1px solid var(--line); }
   .meter .mid { position: absolute; left: 50%; top: 3px; bottom: 3px; width: 2px; background: var(--good); transform: translateX(-1px); }
   .meter .needle { position: absolute; top: -4px; width: 4px; height: 34px; border-radius: 2px; background: var(--ink); left: 50%; transform: translateX(-2px); transition: left 80ms linear; }
@@ -175,7 +178,7 @@
     <div class="card">
       <div class="readout">
         <div class="big" id="rdSwara">–</div>
-        <div class="sub" id="rdSub">Hz · note · cents</div>
+        <div class="sub" id="rdSub">Hz · note<br>cents</div>
       </div>
       <div class="meter" aria-hidden="true"><span class="mid"></span><span class="needle" id="needle"></span></div>
       <div class="meter-labels"><span>−50 flat</span><span>in tune</span><span>sharp +50</span></div>
@@ -186,7 +189,7 @@
           <button type="button" id="holdHear" class="brass">Hear Sa</button></div>
         <div class="hold"><i id="holdBar"></i></div>
         <div class="row" style="justify-content: space-between"><span class="num" id="holdTime">0.0 s of 3.0 s</span><span class="num muted" id="holdMilestones">1 s · 2 s · 3 s</span></div>
-        <span class="msg" id="holdNote">Sing "aa" on Sa and keep your line inside the green band for 3 seconds. Small wobbles are forgiven.</span>
+        <span class="msg" id="holdNote">Sing "aa" on Sa and stay in the green for 3 s. Small wobbles are forgiven.</span>
       </div>
       <div class="panel" id="reviewPanel" hidden>
         <div class="row" style="justify-content: space-between"><span class="eyebrow" id="rvCount">Review 1 of 6 · try 1</span><span class="chip" id="rvPhase">1 · Listen</span></div>
@@ -466,7 +469,7 @@
   /* ---------- Readout, modes and matching ---------- */
   var mode = "free";
   function setReadout(m) {
-    if (m == null) { $("rdSwara").innerHTML = "–"; $("rdSub").textContent = mic.on && mic.rms > 0.02 ? "Hearing sound, but no clear note" : "Sing \"aa\""; $("needle").style.left = "50%"; return; }
+    if (m == null) { $("rdSwara").innerHTML = "–"; $("rdSub").innerHTML = mic.on && mic.rms > 0.02 ? "Sound, but<br>no clear note" : "Sing \"aa\"<br>&nbsp;"; $("needle").style.left = "50%"; return; }
     var d = S.describe(S.mtof(m), st.saMidi);
     $("rdSwara").innerHTML = S.swaraHTML(d.deg, { oct: d.oct }) + '<span class="dev">' + S.swaraHTML(d.deg, { dev: true, oct: d.oct }) + "</span>";
     $("rdSub").innerHTML = d.freq.toFixed(0) + " Hz · " + d.letter + " · " + d.swara.sol + "<br>" + (d.cents >= 0 ? "+" : "") + d.cents.toFixed(0) + " cents";
@@ -506,7 +509,7 @@
       holdMsgUntil = performance.now() + 2500;
       persist();
     } else if (!(holdMsgUntil > performance.now())) {
-      note.textContent = s.run >= s.goal ? "Three seconds in the green. Keep going, or rest: today's goal is done."
+      note.textContent = s.run >= s.goal ? "3 seconds in the green. Today's goal is done."
         : s.inside ? "In the green. Keep it steady."
         : s.cents == null ? "Sing \"aa\" on Sa."
         : s.cents > 0 ? "A little sharp: come down into the green." : "A little flat: lift into the green.";
